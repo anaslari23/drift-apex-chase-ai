@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState } from 'react';
 import { Car } from '@/utils/Car';
 import { Track } from '@/utils/Track';
@@ -9,12 +8,14 @@ import { GameMode, GameModeType } from '@/utils/GameMode';
 import { useToast } from "@/components/ui/use-toast";
 import { 
   Button, 
+} from "@/components/ui/button";
+import { 
   Select, 
   SelectTrigger, 
   SelectValue, 
   SelectContent, 
   SelectItem 
-} from '@/components/ui';
+} from "@/components/ui/select";
 
 // Let's use the game mode to determine track size
 const getTrackSize = (mode: GameModeType) => {
