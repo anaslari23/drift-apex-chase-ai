@@ -4,7 +4,6 @@ import { Track } from './Track';
 
 export class AICar extends Car {
   private track: Track;
-  private targetCheckpoint: number;
   private difficulty: number;
   private reactionTime: number;
   private lastDecision: number;
@@ -27,11 +26,12 @@ export class AICar extends Car {
     this.lastDecision = 0;
   }
   
-  update(deltaTime: number, playerCar: Car) {
+  // Override the update method to include playerCar
+  update(deltaTime: number, playerCar?: Car): void {
     // Implement basic AI logic
     this.lastDecision += deltaTime;
     
-    if (this.lastDecision >= this.reactionTime) {
+    if (this.lastDecision >= this.reactionTime && playerCar) {
       this.lastDecision = 0;
       this.makeDecisions(playerCar);
     }
@@ -88,6 +88,8 @@ export class AICar extends Car {
   }
   
   private distanceToCheckpoint(): number {
+    if (this.targetCheckpoint === undefined) return 1000;
+    
     const checkpoint = this.track.checkpoints[this.targetCheckpoint];
     const dx = checkpoint.x - this.x;
     const dy = checkpoint.y - this.y;
@@ -106,6 +108,10 @@ export class AICar extends Car {
   
   private isAheadOf(otherCar: Car): boolean {
     // Simple check - further ahead in the checkpoint sequence or closer to next checkpoint
+    if (this.targetCheckpoint === undefined || otherCar.targetCheckpoint === undefined) {
+      return false;
+    }
+    
     if (this.targetCheckpoint > otherCar.targetCheckpoint) {
       return true;
     } else if (this.targetCheckpoint === otherCar.targetCheckpoint) {

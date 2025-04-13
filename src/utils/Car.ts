@@ -1,4 +1,3 @@
-
 export class Car {
   x: number;
   y: number;
@@ -16,6 +15,8 @@ export class Car {
   driftTrail: Array<{ x: number, y: number, opacity: number }>;
   boost: boolean;
   boostMultiplier: number;
+  targetCheckpoint?: number;
+  carTexture?: string;
   
   constructor(
     x: number,
@@ -23,7 +24,8 @@ export class Car {
     width: number,
     height: number,
     color: string,
-    angle: number = 0
+    angle: number = 0,
+    carTexture?: string
   ) {
     this.x = x;
     this.y = y;
@@ -41,26 +43,23 @@ export class Car {
     this.driftTrail = [];
     this.boost = false;
     this.boostMultiplier = 1.5;
+    this.carTexture = carTexture;
+    this.targetCheckpoint = 0;
   }
   
   update(deltaTime: number) {
-    // Apply physics
     const frictionFactor = 0.98;
     this.velocity *= frictionFactor;
     
-    // Calculate drift effect
     let effectiveAngle = this.angle;
     if (this.drifting) {
       this.driftFactor = Math.min(this.driftFactor + deltaTime * 2, 0.8);
-      // Add drift trail
       if (Math.abs(this.velocity) > 50) {
         this.driftTrail.push({
           x: this.x,
           y: this.y,
           opacity: 0.7
         });
-        
-        // Limit trail length
         if (this.driftTrail.length > 20) {
           this.driftTrail.shift();
         }
@@ -69,16 +68,13 @@ export class Car {
       this.driftFactor = Math.max(this.driftFactor - deltaTime * 3, 0);
     }
     
-    // Reduce drift trail opacity over time
     this.driftTrail = this.driftTrail
       .map(point => ({ ...point, opacity: point.opacity - deltaTime * 1.5 }))
       .filter(point => point.opacity > 0);
     
-    // Apply drift to effective angle
     const driftAngle = this.driftFactor * Math.sign(this.velocity) * 0.6;
     effectiveAngle += driftAngle;
     
-    // Move car
     const moveX = Math.sin(effectiveAngle) * this.velocity * deltaTime;
     const moveY = -Math.cos(effectiveAngle) * this.velocity * deltaTime;
     
@@ -93,36 +89,30 @@ export class Car {
       this.maxVelocity * (this.boost ? this.boostMultiplier : 1)
     );
     
-    // Check for drift conditions
     if (Math.abs(this.velocity) > this.maxVelocity * 0.7) {
       this.drifting = true;
     }
   }
   
   brake(deltaTime: number) {
-    // Apply brakes
     if (this.velocity > 0) {
       this.velocity = Math.max(0, this.velocity - this.deceleration * 2 * deltaTime);
     } else if (this.velocity <= 0) {
-      // Reverse
       this.velocity = Math.max(-this.maxVelocity / 2, this.velocity - this.acceleration * 0.5 * deltaTime);
     }
     
-    // Stop drifting when braking hard
     if (Math.abs(this.velocity) < this.maxVelocity * 0.4) {
       this.drifting = false;
     }
   }
   
   releaseAccelerator(deltaTime: number) {
-    // Natural deceleration
     if (this.velocity > 0) {
       this.velocity = Math.max(0, this.velocity - this.deceleration * deltaTime);
     } else if (this.velocity < 0) {
       this.velocity = Math.min(0, this.velocity + this.deceleration * deltaTime);
     }
     
-    // Stop drifting gradually
     if (Math.abs(this.velocity) < this.maxVelocity * 0.5) {
       this.drifting = false;
     }
@@ -130,23 +120,18 @@ export class Car {
   
   turnLeft(deltaTime: number) {
     const turnRate = this.turnSpeed * (this.drifting ? 0.7 : 1) * deltaTime;
-    // Scale turn rate with velocity for better handling
     const velocityFactor = Math.abs(this.velocity) / (this.maxVelocity * 0.8);
     this.angle -= turnRate * Math.min(1, velocityFactor);
   }
   
   turnRight(deltaTime: number) {
     const turnRate = this.turnSpeed * (this.drifting ? 0.7 : 1) * deltaTime;
-    // Scale turn rate with velocity for better handling
     const velocityFactor = Math.abs(this.velocity) / (this.maxVelocity * 0.8);
     this.angle += turnRate * Math.min(1, velocityFactor);
   }
   
   handleCollision() {
-    // Bounce back from collision
     this.velocity = -this.velocity * 0.5;
-    
-    // Stop drifting
     this.drifting = false;
     this.driftFactor = 0;
   }
@@ -164,7 +149,6 @@ export class Car {
   }
   
   render(ctx: CanvasRenderingContext2D) {
-    // Render drift trail
     this.driftTrail.forEach(point => {
       ctx.beginPath();
       ctx.arc(point.x, point.y, 5, 0, Math.PI * 2);
@@ -172,34 +156,64 @@ export class Car {
       ctx.fill();
     });
     
-    // Render car
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle);
     
-    // Car body
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+    ctx.fillRect(-this.width / 2 + 2, -this.height / 2 + 2, this.width, this.height);
+    
     ctx.fillStyle = this.color;
     ctx.fillRect(-this.width / 2, -this.height / 2, this.width, this.height);
     
-    // Car details (windows)
-    ctx.fillStyle = '#111';
+    ctx.fillStyle = '#111122';
     ctx.fillRect(-this.width / 3, -this.height / 3, (2 * this.width) / 3, this.height / 5);
     
-    // Boost effect
+    ctx.fillStyle = '#FFCC00';
+    ctx.fillRect(-this.width / 2 + 2, -this.height / 2 + 2, 4, 4);
+    ctx.fillRect(this.width / 2 - 6, -this.height / 2 + 2, 4, 4);
+    
+    if (this.color === '#8B5CF6') {
+      ctx.fillStyle = '#D946EF';
+      ctx.fillRect(-this.width / 8, -this.height / 2, this.width / 4, this.height);
+    }
+    
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(-this.width / 2 + 1, -this.height / 2 + 4, 6, 10);
+    ctx.fillRect(this.width / 2 - 7, -this.height / 2 + 4, 6, 10);
+    ctx.fillRect(-this.width / 2 + 1, this.height / 2 - 14, 6, 10);
+    ctx.fillRect(this.width / 2 - 7, this.height / 2 - 14, 6, 10);
+    
     if (this.boost) {
-      ctx.beginPath();
-      const glowRadius = 10;
-      const gradient = ctx.createRadialGradient(
-        0, this.height / 2 + 5,
-        0,
-        0, this.height / 2 + 5,
-        glowRadius
-      );
-      gradient.addColorStop(0, 'rgba(249, 115, 22, 0.8)');
-      gradient.addColorStop(1, 'rgba(249, 115, 22, 0)');
-      ctx.fillStyle = gradient;
-      ctx.arc(0, this.height / 2 + 5, glowRadius, 0, Math.PI * 2);
-      ctx.fill();
+      const drawFlame = (radius: number, color: string, opacity: number) => {
+        ctx.beginPath();
+        const gradient = ctx.createRadialGradient(
+          0, this.height / 2 + 5,
+          0,
+          0, this.height / 2 + 5,
+          radius
+        );
+        gradient.addColorStop(0, `rgba(${color}, ${opacity})`);
+        gradient.addColorStop(1, `rgba(${color}, 0)`);
+        ctx.fillStyle = gradient;
+        ctx.arc(0, this.height / 2 + 5, radius, 0, Math.PI * 2);
+        ctx.fill();
+      };
+      
+      drawFlame(5, '255, 255, 255', 0.9);
+      drawFlame(8, '249, 115, 22', 0.8);
+      drawFlame(12, '220, 38, 38', 0.5);
+      
+      for (let i = 0; i < 3; i++) {
+        const particleSize = Math.random() * 3 + 1;
+        const distFromCenter = Math.random() * 6 - 3;
+        const distBehind = this.height / 2 + 5 + Math.random() * 8 + 4;
+        
+        ctx.beginPath();
+        ctx.arc(distFromCenter, distBehind, particleSize, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255, 160, 0, 0.7)';
+        ctx.fill();
+      }
     }
     
     ctx.restore();
