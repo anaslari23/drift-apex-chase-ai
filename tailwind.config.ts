@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -52,16 +53,22 @@ export default {
 					DEFAULT: 'hsl(var(--card))',
 					foreground: 'hsl(var(--card-foreground))'
 				},
-				sidebar: {
-					DEFAULT: 'hsl(var(--sidebar-background))',
-					foreground: 'hsl(var(--sidebar-foreground))',
-					primary: 'hsl(var(--sidebar-primary))',
-					'primary-foreground': 'hsl(var(--sidebar-primary-foreground))',
-					accent: 'hsl(var(--sidebar-accent))',
-					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
-					border: 'hsl(var(--sidebar-border))',
-					ring: 'hsl(var(--sidebar-ring))'
-				}
+                // Game-specific colors
+                track: {
+                    DEFAULT: '#1A1A1A',
+                    boundary: '#F97316',
+                    checkpoint: '#1EAEDB'
+                },
+                car: {
+                    player: '#8B5CF6',
+                    ai: '#F97316',
+                    nitro: '#D946EF'
+                },
+                effect: {
+                    drift: '#D946EF',
+                    smoke: '#0000001a'
+                },
+                grass: '#F2FCE2'
 			},
 			borderRadius: {
 				lg: 'var(--radius)',
@@ -84,11 +91,21 @@ export default {
 					to: {
 						height: '0'
 					}
-				}
+				},
+                'drift-fade': {
+                    '0%': { opacity: '0.8' },
+                    '100%': { opacity: '0' }
+                },
+                'pulse-boost': {
+                    '0%, 100%': { opacity: '0.8' },
+                    '50%': { opacity: '1' }
+                }
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
+                'drift-fade': 'drift-fade 1s ease-out forwards',
+                'pulse-boost': 'pulse-boost 0.5s infinite'
 			}
 		}
 	},
