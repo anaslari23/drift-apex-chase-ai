@@ -2,15 +2,15 @@ import { Car } from './Car';
 import { Track } from './Track';
 
 export class AICar extends Car {
-  private track: Track;
-  private difficulty: number;
-  private reactionTime: number;
-  private lastDecision: number;
-  private avoidanceSensors: Array<{angle: number, distance: number}>;
-  private racingLine: Array<{x: number, y: number}>;
-  private aggressiveness: number;
-  private driftProbability: number;
-  private preferredSpeed: number;
+  protected track: Track;
+  protected difficulty: number;
+  protected reactionTime: number;
+  protected lastDecision: number;
+  protected avoidanceSensors: Array<{angle: number, distance: number}>;
+  protected racingLine: Array<{x: number, y: number}>;
+  protected aggressiveness: number;
+  protected driftProbability: number;
+  protected preferredSpeed: number;
   
   constructor(
     x: number,

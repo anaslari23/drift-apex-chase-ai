@@ -1,4 +1,3 @@
-
 import { AICar } from './AICar';
 import { Track } from './Track';
 import { Car } from './Car';
@@ -15,7 +14,7 @@ export class EnhancedAICar extends AICar {
     action: number,
     reward: number
   }> = [];
-  racingLine: Array<{x: number, y: number}>;
+  protected override racingLine: Array<{x: number, y: number}>;
   learningRate: number = 0.01;
   explorationRate: number = 0.2;
   previousDistance: number = Infinity;
