@@ -1,7 +1,9 @@
+
 import { useEffect, useRef, useState } from 'react';
 import { Car } from '@/utils/Car';
 import { Track } from '@/utils/Track';
 import { AICar } from '@/utils/AICar';
+import { EnhancedAICar } from '@/utils/EnhancedAICar';
 import { GameUI } from './GameUI';
 import { Camera, CameraMode } from '@/utils/Camera';
 import { GameMode, GameModeType } from '@/utils/GameMode';
@@ -16,6 +18,7 @@ import {
   SelectContent, 
   SelectItem 
 } from "@/components/ui/select";
+import { RayCaster } from '@/utils/AIAlgorithms';
 
 // Let's use the game mode to determine track size
 const getTrackSize = (mode: GameModeType) => {
@@ -30,7 +33,7 @@ export const GameCanvas = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>();
   const [playerCar, setPlayerCar] = useState<Car | null>(null);
-  const [aiCar, setAiCar] = useState<AICar | null>(null);
+  const [aiCar, setAiCar] = useState<AICar | EnhancedAICar | null>(null);
   const [track, setTrack] = useState<Track | null>(null);
   const [camera, setCamera] = useState<Camera | null>(null);
   const [cameraMode, setCameraMode] = useState<CameraMode>('follow');
@@ -46,11 +49,14 @@ export const GameCanvas = () => {
     boost: 100,
     driftDistance: 0,
     boostTime: 0,
+    sensorReadings: [] as number[],
+    aiType: 'enhanced' as 'basic' | 'enhanced'
   });
   const keysPressed = useRef<Record<string, boolean>>({});
   const lastTimestamp = useRef<number>(0);
   const { toast } = useToast();
   const [showModePicker, setShowModePicker] = useState<boolean>(true);
+  const playerSensorReadings = useRef<number[]>([]);
 
   // Initialize game
   useEffect(() => {
@@ -81,8 +87,8 @@ export const GameCanvas = () => {
     const modeConfig = GameMode.getConfig(gameMode);
     newPlayerCar.maxVelocity = 300 * modeConfig.physics.boostMultiplier;
     
-    // Create AI car with difficulty from game mode
-    const newAiCar = new AICar(
+    // Create enhanced AI car with difficulty from game mode
+    const newAiCar = new EnhancedAICar(
       newTrack.startPosition.x + 40,
       newTrack.startPosition.y,
       30, // width
@@ -158,6 +164,28 @@ export const GameCanvas = () => {
       if (e.key === 'v' && camera && cameraMode === 'fixed') {
         camera.cycleFixedPosition();
       }
+
+      // Toggle AI type with 'a' key
+      if (e.key === 'a') {
+        setGameStats(prev => ({
+          ...prev,
+          aiType: prev.aiType === 'basic' ? 'enhanced' : 'basic'
+        }));
+
+        if (track && aiCar) {
+          // Create new AI car based on selected type
+          const newAiCar = gameStats.aiType === 'basic' 
+            ? new EnhancedAICar(aiCar.x, aiCar.y, aiCar.width, aiCar.height, aiCar.color, aiCar.angle, track, 0.85)
+            : new AICar(aiCar.x, aiCar.y, aiCar.width, aiCar.height, aiCar.color, aiCar.angle, track, 0.85);
+          
+          setAiCar(newAiCar);
+          
+          toast({
+            title: "AI Type Changed",
+            description: `Now using ${gameStats.aiType === 'basic' ? 'Enhanced AI' : 'Basic AI'}`,
+          });
+        }
+      }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -175,7 +203,7 @@ export const GameCanvas = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [cameraMode, camera, toast]);
+  }, [cameraMode, camera, toast, track, aiCar, gameStats.aiType]);
 
   // Game loop
   useEffect(() => {
@@ -221,6 +249,15 @@ export const GameCanvas = () => {
       playerCar.boostMultiplier = physics.boostMultiplier;
       playerCar.driftFactor = physics.driftFactor;
       
+      // Calculate player sensor readings for improved collision detection
+      playerSensorReadings.current = RayCaster.castRays(
+        { x: playerCar.x, y: playerCar.y, angle: playerCar.angle },
+        track,
+        7, // Number of rays
+        150, // Ray length
+        Math.PI * 0.6 // Ray spread
+      );
+      
       // Boost with custom stats tracking
       let boostUsed = false;
       if (keys[' '] && gameStats.boost > 0) {
@@ -255,9 +292,9 @@ export const GameCanvas = () => {
       // Update camera
       camera.update(deltaTime, playerCar, track.width, track.height);
       
-      // Check collisions with track
-      const playerCollision = track.checkCollision(playerCar);
-      if (playerCollision) {
+      // Check collisions with track using improved detection
+      const minSensorReading = Math.min(...playerSensorReadings.current);
+      if (minSensorReading < 15) {
         playerCar.handleCollision();
         toast({
           title: "Crash!",
@@ -327,6 +364,7 @@ export const GameCanvas = () => {
         speed: Math.round(playerCar.getSpeed() * 3.6), // Convert to km/h
         currentLapTime: prev.currentLapTime + deltaTime,
         raceTime: prev.raceTime + deltaTime,
+        sensorReadings: [...playerSensorReadings.current]
       }));
       
       // Apply camera to context
@@ -340,6 +378,29 @@ export const GameCanvas = () => {
       playerCar.render(ctx);
       aiCar.render(ctx);
       
+      // Draw sensor rays for player if enabled
+      if (showUI) {
+        for (let i = 0; i < playerSensorReadings.current.length; i++) {
+          const rayAngle = playerCar.angle - Math.PI * 0.3 + (Math.PI * 0.6 * i / (playerSensorReadings.current.length - 1));
+          const rayLength = playerSensorReadings.current[i];
+          
+          const rayEndX = playerCar.x + Math.sin(rayAngle) * rayLength;
+          const rayEndY = playerCar.y - Math.cos(rayAngle) * rayLength;
+          
+          ctx.beginPath();
+          ctx.moveTo(playerCar.x, playerCar.y);
+          ctx.lineTo(rayEndX, rayEndY);
+          ctx.strokeStyle = `rgba(200, 0, 255, 0.3)`;
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          
+          ctx.beginPath();
+          ctx.arc(rayEndX, rayEndY, 3, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(200, 0, 255, 0.5)`;
+          ctx.fill();
+        }
+      }
+      
       ctx.restore();
       
       requestRef.current = requestAnimationFrame(gameLoop);
@@ -352,7 +413,7 @@ export const GameCanvas = () => {
         cancelAnimationFrame(requestRef.current);
       }
     };
-  }, [gameLoaded, playerCar, track, aiCar, camera, gameMode, toast]);
+  }, [gameLoaded, playerCar, track, aiCar, camera, gameMode, toast, showUI]);
 
   // Handle mode selection
   const handleModeSelect = () => {

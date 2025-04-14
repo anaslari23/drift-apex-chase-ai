@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import React from 'react';
 
 interface GameUIProps {
   gameStats: {
@@ -9,110 +9,108 @@ interface GameUIProps {
     currentLapTime: number;
     raceTime: number;
     boost: number;
+    driftDistance?: number;
+    boostTime?: number;
+    sensorReadings?: number[];
+    aiType?: 'basic' | 'enhanced';
   };
 }
 
-export const GameUI = ({ gameStats }: GameUIProps) => {
-  const [showControls, setShowControls] = useState(true);
-  
-  // Hide controls after 10 seconds
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setShowControls(false);
-    }, 10000);
-    
-    return () => clearTimeout(timer);
-  }, []);
-  
-  // Format time to mm:ss.ms
-  const formatTime = (timeInSeconds: number) => {
-    if (!isFinite(timeInSeconds)) return "--:--:--";
-    
-    const minutes = Math.floor(timeInSeconds / 60);
-    const seconds = Math.floor(timeInSeconds % 60);
-    const ms = Math.floor((timeInSeconds % 1) * 100);
-    
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}:${ms.toString().padStart(2, '0')}`;
-  };
-
+export const GameUI: React.FC<GameUIProps> = ({ gameStats }) => {
   return (
-    <>
-      {/* Speedometer */}
-      <div className="fixed bottom-6 left-6 bg-card/80 backdrop-blur-sm p-4 rounded-lg text-foreground">
-        <h2 className="text-4xl font-bold">
-          {gameStats.speed} <span className="text-lg">km/h</span>
-        </h2>
-      </div>
-      
-      {/* Lap counter and timer */}
-      <div className="fixed top-6 left-6 bg-card/80 backdrop-blur-sm p-4 rounded-lg text-foreground">
-        <div className="space-y-2">
-          <div className="flex justify-between gap-4">
-            <span>LAP:</span>
-            <span className="font-bold">{gameStats.lap}/3</span>
+    <div className="absolute top-0 left-0 p-4 text-white">
+      <div className="bg-black/60 backdrop-blur-sm p-4 rounded-lg shadow-lg">
+        <h2 className="text-xl font-bold mb-2">Race Stats</h2>
+        <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+          <div>
+            <p className="flex justify-between">
+              <span>Speed:</span>
+              <span className="font-mono">{gameStats.speed} km/h</span>
+            </p>
+            <p className="flex justify-between">
+              <span>Lap:</span>
+              <span className="font-mono">{gameStats.lap}</span>
+            </p>
+            <p className="flex justify-between">
+              <span>Current Lap:</span>
+              <span className="font-mono">{gameStats.currentLapTime.toFixed(2)}s</span>
+            </p>
+            <p className="flex justify-between">
+              <span>Best Lap:</span>
+              <span className="font-mono">{gameStats.bestLapTime === Infinity ? '-' : gameStats.bestLapTime.toFixed(2) + 's'}</span>
+            </p>
           </div>
-          <div className="flex justify-between gap-4">
-            <span>TIME:</span>
-            <span className="font-bold">{formatTime(gameStats.currentLapTime)}</span>
-          </div>
-          <div className="flex justify-between gap-4">
-            <span>BEST:</span>
-            <span className="font-bold">{formatTime(gameStats.bestLapTime)}</span>
-          </div>
-          <div className="flex justify-between gap-4">
-            <span>TOTAL:</span>
-            <span className="font-bold">{formatTime(gameStats.raceTime)}</span>
-          </div>
-        </div>
-      </div>
-      
-      {/* Boost meter */}
-      <div className="fixed bottom-6 right-6 bg-card/80 backdrop-blur-sm p-4 rounded-lg text-foreground">
-        <div className="space-y-2">
-          <div className="flex justify-between">
-            <span>BOOST</span>
-            <span className="font-bold">{Math.round(gameStats.boost)}%</span>
-          </div>
-          <div className="w-48 h-4 bg-secondary rounded-full overflow-hidden">
-            <div 
-              className={`h-full ${gameStats.boost > 20 ? 'bg-accent' : 'bg-destructive'} transition-all ${gameStats.boost < 20 ? 'animate-pulse-boost' : ''}`}
-              style={{ width: `${gameStats.boost}%` }}
-            ></div>
-          </div>
-        </div>
-      </div>
-      
-      {/* Controls help overlay */}
-      {showControls && (
-        <div className="fixed inset-0 flex items-center justify-center pointer-events-none">
-          <div className="bg-card/90 backdrop-blur-md p-6 rounded-lg text-foreground max-w-md">
-            <h2 className="text-2xl font-bold mb-4">Controls</h2>
-            <ul className="space-y-2">
-              <li className="flex justify-between">
-                <span>Accelerate:</span>
-                <span className="font-mono bg-secondary px-2 rounded">↑ or W</span>
-              </li>
-              <li className="flex justify-between">
-                <span>Brake/Reverse:</span>
-                <span className="font-mono bg-secondary px-2 rounded">↓ or S</span>
-              </li>
-              <li className="flex justify-between">
-                <span>Turn Left:</span>
-                <span className="font-mono bg-secondary px-2 rounded">← or A</span>
-              </li>
-              <li className="flex justify-between">
-                <span>Turn Right:</span>
-                <span className="font-mono bg-secondary px-2 rounded">→ or D</span>
-              </li>
-              <li className="flex justify-between">
-                <span>Boost:</span>
-                <span className="font-mono bg-secondary px-2 rounded">SPACE</span>
-              </li>
-            </ul>
+          <div>
+            <p className="flex justify-between">
+              <span>Race Time:</span>
+              <span className="font-mono">{gameStats.raceTime.toFixed(1)}s</span>
+            </p>
+            <p className="flex justify-between">
+              <span>Boost:</span>
+              <div className="w-20 bg-gray-700 rounded-full h-2.5 mt-1.5">
+                <div 
+                  className="bg-blue-600 h-2.5 rounded-full transition-all duration-300 ease-out"
+                  style={{ width: `${gameStats.boost}%` }}
+                ></div>
+              </div>
+            </p>
+            {gameStats.driftDistance !== undefined && (
+              <p className="flex justify-between">
+                <span>Drift:</span>
+                <span className="font-mono">{Math.floor(gameStats.driftDistance)}m</span>
+              </p>
+            )}
+            {gameStats.boostTime !== undefined && (
+              <p className="flex justify-between">
+                <span>Boost Time:</span>
+                <span className="font-mono">{gameStats.boostTime.toFixed(1)}s</span>
+              </p>
+            )}
           </div>
         </div>
-      )}
-    </>
+
+        {/* Sensor visualization (for debugging) */}
+        {gameStats.sensorReadings && gameStats.sensorReadings.length > 0 && (
+          <div className="mt-4">
+            <p className="text-sm mb-1">Sensors:</p>
+            <div className="flex justify-between h-8 gap-0.5">
+              {gameStats.sensorReadings.map((reading, index) => {
+                const maxReading = 150; // Max sensor reading
+                const height = Math.min(1, reading / maxReading) * 100;
+                const color = reading < 30 ? 'bg-red-500' : 'bg-green-500';
+                
+                return (
+                  <div key={index} className="flex-1 bg-gray-800 relative">
+                    <div 
+                      className={`absolute bottom-0 left-0 right-0 ${color} transition-all duration-150`}
+                      style={{ height: `${height}%` }}
+                    ></div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* AI type indicator */}
+        {gameStats.aiType && (
+          <div className="mt-4 text-sm">
+            <p className="flex justify-between">
+              <span>AI Type:</span>
+              <span className={`font-mono ${gameStats.aiType === 'enhanced' ? 'text-green-400' : 'text-yellow-400'}`}>
+                {gameStats.aiType === 'enhanced' ? 'Enhanced (Neural Network)' : 'Basic'}
+              </span>
+            </p>
+            <p className="text-xs mt-1 opacity-70">Press 'A' to toggle AI type</p>
+          </div>
+        )}
+        
+        <div className="mt-4 text-xs opacity-70">
+          <p>Controls: Arrow keys to drive, SPACE for boost</p>
+          <p>Press 'C' to change camera, 'U' to toggle UI</p>
+        </div>
+      </div>
+    </div>
   );
 };
 
