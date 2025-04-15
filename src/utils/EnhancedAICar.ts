@@ -1,3 +1,4 @@
+
 import { AICar } from './AICar';
 import { Track } from './Track';
 import { Car } from './Car';
@@ -121,7 +122,8 @@ export class EnhancedAICar extends AICar {
 
   private adaptToPlayer(playerCar: Car, deltaTime: number): void {
     const playerSpeed = playerCar.getSpeed();
-    const playerLap = playerCar.lap || 0;
+    // Fix: Remove the reference to non-existent 'lap' property
+    const playerLap = 0; // Use default value since playerCar.lap doesn't exist
     const distanceToPlayer = this.distanceToEntity(playerCar);
     
     this.playerPerformanceHistory.push(playerSpeed);
