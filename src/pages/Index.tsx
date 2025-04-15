@@ -5,8 +5,8 @@ import { Loader } from "@/components/ui/loader";
 
 const Index = () => {
   return (
-    <div className="min-h-screen w-full overflow-hidden relative">
-      <Suspense fallback={<div className="flex items-center justify-center h-screen"><Loader className="w-12 h-12" /></div>}>
+    <div className="min-h-screen w-full overflow-hidden relative bg-black">
+      <Suspense fallback={<div className="flex items-center justify-center h-screen"><Loader className="w-12 h-12 text-white" /></div>}>
         <GameCanvas />
       </Suspense>
     </div>

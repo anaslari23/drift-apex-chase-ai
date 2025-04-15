@@ -1,3 +1,4 @@
+
 import { useEffect, useRef, useState } from 'react';
 import { Car } from '@/utils/Car';
 import { Track } from '@/utils/Track';
@@ -7,18 +8,9 @@ import { GameUI } from './GameUI';
 import { Camera, CameraMode } from '@/utils/Camera';
 import { GameMode, GameModeType } from '@/utils/GameMode';
 import { useToast } from "@/components/ui/use-toast";
-import { 
-  Button, 
-} from "@/components/ui/button";
-import { 
-  Select, 
-  SelectTrigger, 
-  SelectValue, 
-  SelectContent, 
-  SelectItem 
-} from "@/components/ui/select";
 import { RayCaster } from '@/utils/AIAlgorithms';
 import { Game3DRenderer } from './Game3DRenderer';
+import { Skeleton } from "@/components/ui/skeleton";
 
 // Let's use the game mode to determine track size
 const getTrackSize = (mode: GameModeType) => {
@@ -55,23 +47,23 @@ export const GameCanvas = () => {
   const keysPressed = useRef<Record<string, boolean>>({});
   const lastTimestamp = useRef<number>(0);
   const { toast } = useToast();
-  const [showModePicker, setShowModePicker] = useState<boolean>(false);
   const playerSensorReadings = useRef<number[]>([]);
-  const [render3D, setRender3D] = useState<boolean>(true);
+  // Always use 3D rendering by default
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
+  // Start the game as soon as component mounts
   useEffect(() => {
-    if (!gameLoaded && !showModePicker) {
+    // Short timeout to ensure all components are ready
+    const timer = setTimeout(() => {
       startGame();
-    }
+    }, 500);
+    
+    return () => clearTimeout(timer);
   }, []);
 
   const startGame = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
+    setIsLoading(true);
+    
     const trackSize = getTrackSize(gameMode);
     
     // Create track with size from game mode
@@ -120,377 +112,179 @@ export const GameCanvas = () => {
     setAiCar(newAiCar);
     setCamera(newCamera);
     setGameLoaded(true);
-
-    // Show welcome toast
-    toast({
-      title: `3D Racing Game Ready!`,
-      description: "Use arrow keys to drive, SPACE for boost, C to change camera",
-    });
+    
+    // Short timeout to ensure 3D renderer has time to initialize
+    setTimeout(() => {
+      setIsLoading(false);
+      
+      // Show welcome toast
+      toast({
+        title: `3D Racing Game Ready!`,
+        description: "Use arrow keys to drive, SPACE for boost, C to change camera",
+      });
+    }, 1000);
   };
 
   useEffect(() => {
     if (!gameLoaded || !playerCar || !track || !aiCar || !camera) return;
 
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    
-    // Skip 2D rendering if using 3D mode
-    if (render3D) {
-      const gameLoop = (timestamp: number) => {
-        const deltaTime = lastTimestamp.current ? (timestamp - lastTimestamp.current) / 1000 : 0.016;
-        lastTimestamp.current = timestamp;
-        
-        // Update player car based on input
-        const keys = keysPressed.current;
-        
-        if (keys['ArrowUp'] || keys['w']) {
-          playerCar.accelerate(deltaTime);
-        } else if (keys['ArrowDown'] || keys['s']) {
-          playerCar.brake(deltaTime);
-        } else {
-          playerCar.releaseAccelerator(deltaTime);
-        }
-        
-        if (keys['ArrowLeft'] || keys['a']) {
-          playerCar.turnLeft(deltaTime);
-        } 
-        if (keys['ArrowRight'] || keys['d']) {
-          playerCar.turnRight(deltaTime);
-        }
-        
-        // Apply game mode physics to player car
-        const modeConfig = GameMode.getConfig(gameMode);
-        playerCar.maxVelocity = 300 * modeConfig.physics.boostMultiplier;
-        playerCar.boostMultiplier = modeConfig.physics.boostMultiplier;
-        playerCar.driftFactor = modeConfig.physics.driftFactor;
-        
-        // Calculate player sensor readings for improved collision detection
-        playerSensorReadings.current = RayCaster.castRays(
-          { x: playerCar.x, y: playerCar.y, angle: playerCar.angle },
-          track,
-          7, // Number of rays
-          150, // Ray length
-          Math.PI * 0.6 // Ray spread
-        );
-        
-        // Boost with custom stats tracking
-        let boostUsed = false;
-        if (keys[' '] && gameStats.boost > 0) {
-          playerCar.activateBoost();
-          boostUsed = true;
-          setGameStats(prev => ({
-            ...prev,
-            boost: Math.max(0, prev.boost - 1),
-            boostTime: prev.boostTime + deltaTime
-          }));
-        } else {
-          playerCar.deactivateBoost();
-          setGameStats(prev => ({
-            ...prev,
-            boost: Math.min(100, prev.boost + 0.2),
-          }));
-        }
-
-        // Update positions and physics
-        playerCar.update(deltaTime);
-        aiCar.update(deltaTime, playerCar);
-        
-        // Track drift distance for challenges
-        if (playerCar.drifting) {
-          const driftAmount = playerCar.getSpeed() * deltaTime;
-          setGameStats(prev => ({
-            ...prev,
-            driftDistance: prev.driftDistance + driftAmount
-          }));
-        }
-        
-        // Update camera
-        camera.update(deltaTime, playerCar, track.width, track.height);
-        
-        // Check collisions with track using improved detection
-        const minSensorReading = Math.min(...playerSensorReadings.current);
-        if (minSensorReading < 15) {
-          playerCar.handleCollision();
-          toast({
-            title: "Crash!",
-            description: "Careful with those barriers!",
-            variant: "destructive",
-          });
-        }
-        
-        // Check if crossed checkpoint or finish line
-        const playerCheckpoint = track.checkCheckpoint(playerCar);
-        if (playerCheckpoint) {
-          if (playerCheckpoint === 'finish') {
-            // Completed a lap
-            const lapTime = gameStats.currentLapTime;
-            const newLap = gameStats.lap + 1;
-            
-            setGameStats(prev => ({
-              ...prev,
-              lap: newLap,
-              bestLapTime: lapTime < prev.bestLapTime ? lapTime : prev.bestLapTime,
-              currentLapTime: 0,
-            }));
-            
-            toast({
-              title: `Lap ${newLap} Complete!`,
-              description: `Time: ${lapTime.toFixed(2)}s`,
-            });
-            
-            // Check challenge completion for challenge mode
-            if (gameMode === 'challenge') {
-              const challenges = modeConfig.challenges;
-              if (challenges) {
-                // Check time challenge
-                const timeChallenge = challenges.find(c => c.type === 'time');
-                if (timeChallenge && lapTime <= timeChallenge.target) {
-                  toast({
-                    title: "Challenge Complete!",
-                    description: `Completed lap in under ${timeChallenge.target}s`,
-                  });
-                }
-                
-                // Check drift challenge
-                const driftChallenge = challenges.find(c => c.type === 'drift');
-                if (driftChallenge && gameStats.driftDistance >= driftChallenge.target) {
-                  toast({
-                    title: "Challenge Complete!",
-                    description: `Drifted for ${Math.floor(gameStats.driftDistance)}m`,
-                  });
-                }
-                
-                // Check boost challenge
-                const boostChallenge = challenges.find(c => c.type === 'boost');
-                if (boostChallenge && gameStats.boostTime >= boostChallenge.target) {
-                  toast({
-                    title: "Challenge Complete!",
-                    description: `Used boost for ${gameStats.boostTime.toFixed(1)}s`,
-                  });
-                }
-              }
-            }
-          }
-        }
-        
-        // Update game stats
-        setGameStats(prev => ({
-          ...prev,
-          speed: Math.round(playerCar.getSpeed() * 3.6), // Convert to km/h
-          currentLapTime: prev.currentLapTime + deltaTime,
-          raceTime: prev.raceTime + deltaTime,
-          sensorReadings: [...playerSensorReadings.current]
-        }));
-        
-        requestRef.current = requestAnimationFrame(gameLoop);
-      };
+    const gameLoop = (timestamp: number) => {
+      const deltaTime = lastTimestamp.current ? (timestamp - lastTimestamp.current) / 1000 : 0.016;
+      lastTimestamp.current = timestamp;
       
-      requestRef.current = requestAnimationFrame(gameLoop);
-    } else {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
+      // Update player car based on input
+      const keys = keysPressed.current;
       
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
+      if (keys['ArrowUp'] || keys['w']) {
+        playerCar.accelerate(deltaTime);
+      } else if (keys['ArrowDown'] || keys['s']) {
+        playerCar.brake(deltaTime);
+      } else {
+        playerCar.releaseAccelerator(deltaTime);
+      }
       
+      if (keys['ArrowLeft'] || keys['a']) {
+        playerCar.turnLeft(deltaTime);
+      } 
+      if (keys['ArrowRight'] || keys['d']) {
+        playerCar.turnRight(deltaTime);
+      }
+      
+      // Apply game mode physics to player car
       const modeConfig = GameMode.getConfig(gameMode);
-      const physics = modeConfig.physics;
+      playerCar.maxVelocity = 300 * modeConfig.physics.boostMultiplier;
+      playerCar.boostMultiplier = modeConfig.physics.boostMultiplier;
+      playerCar.driftFactor = modeConfig.physics.driftFactor;
+      
+      // Calculate player sensor readings for improved collision detection
+      playerSensorReadings.current = RayCaster.castRays(
+        { x: playerCar.x, y: playerCar.y, angle: playerCar.angle },
+        track,
+        7, // Number of rays
+        150, // Ray length
+        Math.PI * 0.6 // Ray spread
+      );
+      
+      // Boost with custom stats tracking
+      let boostUsed = false;
+      if (keys[' '] && gameStats.boost > 0) {
+        playerCar.activateBoost();
+        boostUsed = true;
+        setGameStats(prev => ({
+          ...prev,
+          boost: Math.max(0, prev.boost - 1),
+          boostTime: prev.boostTime + deltaTime
+        }));
+      } else {
+        playerCar.deactivateBoost();
+        setGameStats(prev => ({
+          ...prev,
+          boost: Math.min(100, prev.boost + 0.2),
+        }));
+      }
 
-      const gameLoop = (timestamp: number) => {
-        const deltaTime = lastTimestamp.current ? (timestamp - lastTimestamp.current) / 1000 : 0.016;
-        lastTimestamp.current = timestamp;
-        
-        // Clear canvas
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
-        // Update player car based on input
-        const keys = keysPressed.current;
-        
-        if (keys['ArrowUp'] || keys['w']) {
-          playerCar.accelerate(deltaTime);
-        } else if (keys['ArrowDown'] || keys['s']) {
-          playerCar.brake(deltaTime);
-        } else {
-          playerCar.releaseAccelerator(deltaTime);
-        }
-        
-        if (keys['ArrowLeft'] || keys['a']) {
-          playerCar.turnLeft(deltaTime);
-        } 
-        if (keys['ArrowRight'] || keys['d']) {
-          playerCar.turnRight(deltaTime);
-        }
-        
-        // Apply game mode physics to player car
-        playerCar.maxVelocity = 300 * physics.boostMultiplier;
-        playerCar.boostMultiplier = physics.boostMultiplier;
-        playerCar.driftFactor = physics.driftFactor;
-        
-        // Calculate player sensor readings for improved collision detection
-        playerSensorReadings.current = RayCaster.castRays(
-          { x: playerCar.x, y: playerCar.y, angle: playerCar.angle },
-          track,
-          7, // Number of rays
-          150, // Ray length
-          Math.PI * 0.6 // Ray spread
-        );
-        
-        // Boost with custom stats tracking
-        let boostUsed = false;
-        if (keys[' '] && gameStats.boost > 0) {
-          playerCar.activateBoost();
-          boostUsed = true;
+      // Update positions and physics
+      playerCar.update(deltaTime);
+      aiCar.update(deltaTime, playerCar);
+      
+      // Track drift distance for challenges
+      if (playerCar.drifting) {
+        const driftAmount = playerCar.getSpeed() * deltaTime;
+        setGameStats(prev => ({
+          ...prev,
+          driftDistance: prev.driftDistance + driftAmount
+        }));
+      }
+      
+      // Update camera
+      camera.update(deltaTime, playerCar, track.width, track.height);
+      
+      // Check collisions with track using improved detection
+      const minSensorReading = Math.min(...playerSensorReadings.current);
+      if (minSensorReading < 15) {
+        playerCar.handleCollision();
+        toast({
+          title: "Crash!",
+          description: "Careful with those barriers!",
+          variant: "destructive",
+        });
+      }
+      
+      // Check if crossed checkpoint or finish line
+      const playerCheckpoint = track.checkCheckpoint(playerCar);
+      if (playerCheckpoint) {
+        if (playerCheckpoint === 'finish') {
+          // Completed a lap
+          const lapTime = gameStats.currentLapTime;
+          const newLap = gameStats.lap + 1;
+          
           setGameStats(prev => ({
             ...prev,
-            boost: Math.max(0, prev.boost - 1),
-            boostTime: prev.boostTime + deltaTime
+            lap: newLap,
+            bestLapTime: lapTime < prev.bestLapTime ? lapTime : prev.bestLapTime,
+            currentLapTime: 0,
           }));
-        } else {
-          playerCar.deactivateBoost();
-          setGameStats(prev => ({
-            ...prev,
-            boost: Math.min(100, prev.boost + 0.2),
-          }));
-        }
-
-        // Update positions and physics
-        playerCar.update(deltaTime);
-        aiCar.update(deltaTime, playerCar);
-        
-        // Track drift distance for challenges
-        if (playerCar.drifting) {
-          const driftAmount = playerCar.getSpeed() * deltaTime;
-          setGameStats(prev => ({
-            ...prev,
-            driftDistance: prev.driftDistance + driftAmount
-          }));
-        }
-        
-        // Update camera
-        camera.update(deltaTime, playerCar, track.width, track.height);
-        
-        // Check collisions with track using improved detection
-        const minSensorReading = Math.min(...playerSensorReadings.current);
-        if (minSensorReading < 15) {
-          playerCar.handleCollision();
+          
           toast({
-            title: "Crash!",
-            description: "Careful with those barriers!",
-            variant: "destructive",
+            title: `Lap ${newLap} Complete!`,
+            description: `Time: ${lapTime.toFixed(2)}s`,
           });
-        }
-        
-        // Check if crossed checkpoint or finish line
-        const playerCheckpoint = track.checkCheckpoint(playerCar);
-        if (playerCheckpoint) {
-          if (playerCheckpoint === 'finish') {
-            // Completed a lap
-            const lapTime = gameStats.currentLapTime;
-            const newLap = gameStats.lap + 1;
-            
-            setGameStats(prev => ({
-              ...prev,
-              lap: newLap,
-              bestLapTime: lapTime < prev.bestLapTime ? lapTime : prev.bestLapTime,
-              currentLapTime: 0,
-            }));
-            
-            toast({
-              title: `Lap ${newLap} Complete!`,
-              description: `Time: ${lapTime.toFixed(2)}s`,
-            });
-            
-            // Check challenge completion for challenge mode
-            if (gameMode === 'challenge') {
-              const challenges = modeConfig.challenges;
-              if (challenges) {
-                // Check time challenge
-                const timeChallenge = challenges.find(c => c.type === 'time');
-                if (timeChallenge && lapTime <= timeChallenge.target) {
-                  toast({
-                    title: "Challenge Complete!",
-                    description: `Completed lap in under ${timeChallenge.target}s`,
-                  });
-                }
-                
-                // Check drift challenge
-                const driftChallenge = challenges.find(c => c.type === 'drift');
-                if (driftChallenge && gameStats.driftDistance >= driftChallenge.target) {
-                  toast({
-                    title: "Challenge Complete!",
-                    description: `Drifted for ${Math.floor(gameStats.driftDistance)}m`,
-                  });
-                }
-                
-                // Check boost challenge
-                const boostChallenge = challenges.find(c => c.type === 'boost');
-                if (boostChallenge && gameStats.boostTime >= boostChallenge.target) {
-                  toast({
-                    title: "Challenge Complete!",
-                    description: `Used boost for ${gameStats.boostTime.toFixed(1)}s`,
-                  });
-                }
+          
+          // Check challenge completion for challenge mode
+          if (gameMode === 'challenge') {
+            const challenges = modeConfig.challenges;
+            if (challenges) {
+              // Check time challenge
+              const timeChallenge = challenges.find(c => c.type === 'time');
+              if (timeChallenge && lapTime <= timeChallenge.target) {
+                toast({
+                  title: "Challenge Complete!",
+                  description: `Completed lap in under ${timeChallenge.target}s`,
+                });
+              }
+              
+              // Check drift challenge
+              const driftChallenge = challenges.find(c => c.type === 'drift');
+              if (driftChallenge && gameStats.driftDistance >= driftChallenge.target) {
+                toast({
+                  title: "Challenge Complete!",
+                  description: `Drifted for ${Math.floor(gameStats.driftDistance)}m`,
+                });
+              }
+              
+              // Check boost challenge
+              const boostChallenge = challenges.find(c => c.type === 'boost');
+              if (boostChallenge && gameStats.boostTime >= boostChallenge.target) {
+                toast({
+                  title: "Challenge Complete!",
+                  description: `Used boost for ${gameStats.boostTime.toFixed(1)}s`,
+                });
               }
             }
           }
         }
-        
-        // Update game stats
-        setGameStats(prev => ({
-          ...prev,
-          speed: Math.round(playerCar.getSpeed() * 3.6), // Convert to km/h
-          currentLapTime: prev.currentLapTime + deltaTime,
-          raceTime: prev.raceTime + deltaTime,
-          sensorReadings: [...playerSensorReadings.current]
-        }));
-        
-        ctx.save();
-        camera.applyToContext(ctx, canvas.width, canvas.height);
-        
-        // Draw track
-        track.render(ctx);
-        
-        // Draw cars
-        playerCar.render(ctx);
-        aiCar.render(ctx);
-        
-        // Draw sensor rays for player if enabled
-        if (showUI) {
-          for (let i = 0; i < playerSensorReadings.current.length; i++) {
-            const rayAngle = playerCar.angle - Math.PI * 0.3 + (Math.PI * 0.6 * i / (playerSensorReadings.current.length - 1));
-            const rayLength = playerSensorReadings.current[i];
-            
-            const rayEndX = playerCar.x + Math.sin(rayAngle) * rayLength;
-            const rayEndY = playerCar.y - Math.cos(rayAngle) * rayLength;
-            
-            ctx.beginPath();
-            ctx.moveTo(playerCar.x, playerCar.y);
-            ctx.lineTo(rayEndX, rayEndY);
-            ctx.strokeStyle = `rgba(200, 0, 255, 0.3)`;
-            ctx.lineWidth = 1;
-            ctx.stroke();
-            
-            ctx.beginPath();
-            ctx.arc(rayEndX, rayEndY, 3, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(200, 0, 255, 0.5)`;
-            ctx.fill();
-          }
-        }
-        
-        ctx.restore();
-        
-        requestRef.current = requestAnimationFrame(gameLoop);
-      };
+      }
+      
+      // Update game stats
+      setGameStats(prev => ({
+        ...prev,
+        speed: Math.round(playerCar.getSpeed() * 3.6), // Convert to km/h
+        currentLapTime: prev.currentLapTime + deltaTime,
+        raceTime: prev.raceTime + deltaTime,
+        sensorReadings: [...playerSensorReadings.current]
+      }));
       
       requestRef.current = requestAnimationFrame(gameLoop);
-    }
+    };
+    
+    requestRef.current = requestAnimationFrame(gameLoop);
     
     return () => {
       if (requestRef.current) {
         cancelAnimationFrame(requestRef.current);
       }
     };
-  }, [gameLoaded, playerCar, track, aiCar, camera, gameMode, toast, showUI, render3D]);
+  }, [gameLoaded, playerCar, track, aiCar, camera, gameMode, toast, showUI]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -547,15 +341,6 @@ export const GameCanvas = () => {
           });
         }
       }
-      
-      // Add toggle for 2D/3D mode with '2' key for debugging
-      if (e.key === '2') {
-        setRender3D(prev => !prev);
-        toast({
-          title: "View Changed",
-          description: `Switched to ${!render3D ? '3D' : '2D'} view`,
-        });
-      }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -573,46 +358,36 @@ export const GameCanvas = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [cameraMode, camera, toast, track, aiCar, gameStats.aiType, render3D]);
+  }, [cameraMode, camera, toast, track, aiCar, gameStats.aiType]);
 
   return (
     <div className="game-container">
-      {render3D ? (
-        <div className="game-3d-container w-full h-full">
-          {gameLoaded && playerCar && track && aiCar && camera ? (
-            <Game3DRenderer
-              playerCar={playerCar}
-              aiCar={aiCar}
-              track={track}
-              cameraMode={cameraMode}
-              cameraPosition={camera.getPosition()}
-            />
-          ) : (
-            <div className="flex items-center justify-center h-screen bg-black">
-              <div className="text-white text-lg">Loading 3D Racing Game...</div>
+      {isLoading ? (
+        <div className="flex items-center justify-center h-screen bg-black">
+          <div className="flex flex-col items-center gap-4">
+            <Loader className="w-16 h-16 text-purple-500" />
+            <p className="text-white text-2xl">Loading 3D Racing Game...</p>
+            <div className="w-64 space-y-2">
+              <Skeleton className="h-4 w-full bg-purple-900/20" />
+              <Skeleton className="h-4 w-5/6 bg-purple-900/20" />
+              <Skeleton className="h-4 w-4/6 bg-purple-900/20" />
             </div>
-          )}
+          </div>
+        </div>
+      ) : gameLoaded && playerCar && track && aiCar && camera ? (
+        <div className="game-3d-container w-full h-full">
+          <Game3DRenderer
+            playerCar={playerCar}
+            aiCar={aiCar}
+            track={track}
+            cameraMode={cameraMode}
+            cameraPosition={camera.getPosition()}
+          />
+          {gameStats && showUI && <GameUI gameStats={gameStats} />}
         </div>
       ) : (
-        <canvas 
-          ref={canvasRef}
-          width={window.innerWidth}
-          height={window.innerHeight}
-          className="bg-track"
-        />
-      )}
-      
-      {gameStats && showUI && !showModePicker && <GameUI gameStats={gameStats} />}
-      
-      {gameLoaded && !showModePicker && (
-        <div className="absolute top-4 right-4 z-10">
-          <Button
-            variant="outline"
-            onClick={() => setRender3D(prev => !prev)}
-            className="bg-black/50 text-white border border-white/20"
-          >
-            {render3D ? "Switch to 2D" : "Switch to 3D"}
-          </Button>
+        <div className="flex items-center justify-center h-screen bg-black">
+          <p className="text-white text-2xl">Game failed to load. Please refresh.</p>
         </div>
       )}
     </div>

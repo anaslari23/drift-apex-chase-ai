@@ -13,7 +13,7 @@ export const Loader = ({ className, ...props }: LoaderProps) => {
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
-        strokeWidth="2"
+        strokeWidth="3"
         strokeLinecap="round"
         strokeLinejoin="round"
       >
