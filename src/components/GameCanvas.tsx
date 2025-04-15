@@ -36,7 +36,7 @@ export const GameCanvas = () => {
   const [aiCar, setAiCar] = useState<AICar | EnhancedAICar | null>(null);
   const [track, setTrack] = useState<Track | null>(null);
   const [camera, setCamera] = useState<Camera | null>(null);
-  const [cameraMode, setCameraMode] = useState<CameraMode>('follow');
+  const [cameraMode, setCameraMode] = useState<CameraMode>('chase');
   const [gameMode, setGameMode] = useState<GameModeType>('race');
   const [gameLoaded, setGameLoaded] = useState<boolean>(false);
   const [showUI, setShowUI] = useState<boolean>(true);
@@ -55,13 +55,17 @@ export const GameCanvas = () => {
   const keysPressed = useRef<Record<string, boolean>>({});
   const lastTimestamp = useRef<number>(0);
   const { toast } = useToast();
-  const [showModePicker, setShowModePicker] = useState<boolean>(true);
+  const [showModePicker, setShowModePicker] = useState<boolean>(false);
   const playerSensorReadings = useRef<number[]>([]);
   const [render3D, setRender3D] = useState<boolean>(true);
 
   useEffect(() => {
-    if (showModePicker) return; // Don't start game until mode is selected
-    
+    if (!gameLoaded && !showModePicker) {
+      startGame();
+    }
+  }, []);
+
+  const startGame = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -119,90 +123,10 @@ export const GameCanvas = () => {
 
     // Show welcome toast
     toast({
-      title: `${modeConfig.name} Ready!`,
+      title: `3D Racing Game Ready!`,
       description: "Use arrow keys to drive, SPACE for boost, C to change camera",
     });
-
-    return () => {
-      if (requestRef.current) {
-        cancelAnimationFrame(requestRef.current);
-      }
-    };
-  }, [gameMode, cameraMode, showModePicker, toast]);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      keysPressed.current[e.key] = true;
-      
-      // Camera change on 'c' press
-      if (e.key === 'c' && !keysPressed.current.cAlreadyPressed) {
-        keysPressed.current.cAlreadyPressed = true;
-        
-        // Cycle through camera modes
-        const modes: CameraMode[] = ['follow', 'chase', 'overhead', 'cinematic', 'fixed'];
-        const currentIndex = modes.indexOf(cameraMode);
-        const nextMode = modes[(currentIndex + 1) % modes.length];
-        
-        setCameraMode(nextMode);
-        
-        if (camera) {
-          camera.setMode(nextMode);
-          toast({
-            title: "Camera Changed",
-            description: `Camera Mode: ${nextMode.charAt(0).toUpperCase() + nextMode.slice(1)}`,
-          });
-        }
-      }
-      
-      // Toggle UI with 'u' key
-      if (e.key === 'u') {
-        setShowUI(prev => !prev);
-      }
-      
-      // Next fixed camera position with 'v' key
-      if (e.key === 'v' && camera && cameraMode === 'fixed') {
-        camera.cycleFixedPosition();
-      }
-
-      // Toggle AI type with 'a' key
-      if (e.key === 'a') {
-        setGameStats(prev => ({
-          ...prev,
-          aiType: prev.aiType === 'basic' ? 'enhanced' : 'basic'
-        }));
-
-        if (track && aiCar) {
-          // Create new AI car based on selected type
-          const newAiCar = gameStats.aiType === 'basic' 
-            ? new EnhancedAICar(aiCar.x, aiCar.y, aiCar.width, aiCar.height, aiCar.color, aiCar.angle, track, 0.85)
-            : new AICar(aiCar.x, aiCar.y, aiCar.width, aiCar.height, aiCar.color, aiCar.angle, track, 0.85);
-          
-          setAiCar(newAiCar);
-          
-          toast({
-            title: "AI Type Changed",
-            description: `Now using ${gameStats.aiType === 'basic' ? 'Enhanced AI' : 'Basic AI'}`,
-          });
-        }
-      }
-    };
-
-    const handleKeyUp = (e: KeyboardEvent) => {
-      keysPressed.current[e.key] = false;
-      
-      if (e.key === 'c') {
-        keysPressed.current.cAlreadyPressed = false;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-    };
-  }, [cameraMode, camera, toast, track, aiCar, gameStats.aiType]);
+  };
 
   useEffect(() => {
     if (!gameLoaded || !playerCar || !track || !aiCar || !camera) return;
@@ -363,14 +287,12 @@ export const GameCanvas = () => {
       
       requestRef.current = requestAnimationFrame(gameLoop);
     } else {
-      // Original 2D rendering logic
       const canvas = canvasRef.current;
       if (!canvas) return;
       
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
       
-      // Get physics config from game mode
       const modeConfig = GameMode.getConfig(gameMode);
       const physics = modeConfig.physics;
 
@@ -570,15 +492,94 @@ export const GameCanvas = () => {
     };
   }, [gameLoaded, playerCar, track, aiCar, camera, gameMode, toast, showUI, render3D]);
 
-  const handleModeSelect = () => {
-    setShowModePicker(false);
-  };
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      keysPressed.current[e.key] = true;
+      
+      // Camera change on 'c' press
+      if (e.key === 'c' && !keysPressed.current.cAlreadyPressed) {
+        keysPressed.current.cAlreadyPressed = true;
+        
+        // Cycle through camera modes
+        const modes: CameraMode[] = ['follow', 'chase', 'overhead', 'cinematic', 'fixed'];
+        const currentIndex = modes.indexOf(cameraMode);
+        const nextMode = modes[(currentIndex + 1) % modes.length];
+        
+        setCameraMode(nextMode);
+        
+        if (camera) {
+          camera.setMode(nextMode);
+          toast({
+            title: "Camera Changed",
+            description: `Camera Mode: ${nextMode.charAt(0).toUpperCase() + nextMode.slice(1)}`,
+          });
+        }
+      }
+      
+      // Toggle UI with 'u' key
+      if (e.key === 'u') {
+        setShowUI(prev => !prev);
+      }
+      
+      // Next fixed camera position with 'v' key
+      if (e.key === 'v' && camera && cameraMode === 'fixed') {
+        camera.cycleFixedPosition();
+      }
+
+      // Toggle AI type with 'a' key
+      if (e.key === 'a') {
+        setGameStats(prev => ({
+          ...prev,
+          aiType: prev.aiType === 'basic' ? 'enhanced' : 'basic'
+        }));
+
+        if (track && aiCar) {
+          // Create new AI car based on selected type
+          const newAiCar = gameStats.aiType === 'basic' 
+            ? new EnhancedAICar(aiCar.x, aiCar.y, aiCar.width, aiCar.height, aiCar.color, aiCar.angle, track, 0.85)
+            : new AICar(aiCar.x, aiCar.y, aiCar.width, aiCar.height, aiCar.color, aiCar.angle, track, 0.85);
+          
+          setAiCar(newAiCar);
+          
+          toast({
+            title: "AI Type Changed",
+            description: `Now using ${gameStats.aiType === 'basic' ? 'Enhanced AI' : 'Basic AI'}`,
+          });
+        }
+      }
+      
+      // Add toggle for 2D/3D mode with '2' key for debugging
+      if (e.key === '2') {
+        setRender3D(prev => !prev);
+        toast({
+          title: "View Changed",
+          description: `Switched to ${!render3D ? '3D' : '2D'} view`,
+        });
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      keysPressed.current[e.key] = false;
+      
+      if (e.key === 'c') {
+        keysPressed.current.cAlreadyPressed = false;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [cameraMode, camera, toast, track, aiCar, gameStats.aiType, render3D]);
 
   return (
     <div className="game-container">
       {render3D ? (
-        <div className="game-3d-container">
-          {gameLoaded && playerCar && track && aiCar && camera && (
+        <div className="game-3d-container w-full h-full">
+          {gameLoaded && playerCar && track && aiCar && camera ? (
             <Game3DRenderer
               playerCar={playerCar}
               aiCar={aiCar}
@@ -586,6 +587,10 @@ export const GameCanvas = () => {
               cameraMode={cameraMode}
               cameraPosition={camera.getPosition()}
             />
+          ) : (
+            <div className="flex items-center justify-center h-screen bg-black">
+              <div className="text-white text-lg">Loading 3D Racing Game...</div>
+            </div>
           )}
         </div>
       ) : (
@@ -595,86 +600,6 @@ export const GameCanvas = () => {
           height={window.innerHeight}
           className="bg-track"
         />
-      )}
-      
-      {showModePicker && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-10">
-          <div className="bg-card p-8 rounded-lg shadow-lg max-w-md w-full">
-            <h2 className="text-2xl font-bold mb-6 text-center">Select Game Mode</h2>
-            
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Game Mode</label>
-                <Select 
-                  value={gameMode} 
-                  onValueChange={(value) => setGameMode(value as GameModeType)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select mode" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {GameMode.getAllModes().map(mode => (
-                      <SelectItem key={mode} value={mode}>
-                        {GameMode.getConfig(mode).name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-sm text-muted-foreground">
-                  {GameMode.getConfig(gameMode).description}
-                </p>
-              </div>
-              
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Starting Camera</label>
-                <Select 
-                  value={cameraMode} 
-                  onValueChange={(value) => setCameraMode(value as CameraMode)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select camera" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="follow">Follow Camera</SelectItem>
-                    <SelectItem value="chase">Chase Camera</SelectItem>
-                    <SelectItem value="overhead">Overhead Camera</SelectItem>
-                    <SelectItem value="cinematic">Cinematic Camera</SelectItem>
-                    <SelectItem value="fixed">Fixed Camera</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-sm text-muted-foreground">
-                  Press C during gameplay to cycle between camera modes.
-                </p>
-              </div>
-              
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Graphics Mode</label>
-                <Select 
-                  value={render3D ? "3d" : "2d"} 
-                  onValueChange={(value) => setRender3D(value === "3d")}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select graphics mode" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="3d">3D Graphics</SelectItem>
-                    <SelectItem value="2d">2D Graphics</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-sm text-muted-foreground">
-                  3D mode provides enhanced graphics but may require more processing power.
-                </p>
-              </div>
-              
-              <Button 
-                className="w-full" 
-                onClick={handleModeSelect}
-              >
-                Start Race
-              </Button>
-            </div>
-          </div>
-        </div>
       )}
       
       {gameStats && showUI && !showModePicker && <GameUI gameStats={gameStats} />}
