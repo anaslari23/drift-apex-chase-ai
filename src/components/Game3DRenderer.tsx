@@ -78,7 +78,8 @@ const CarModel = ({ position, rotation, color, isPlayerCar }: {
 const Wheel = ({ position }: { position: [number, number, number] }) => {
   return (
     <mesh position={position} castShadow receiveShadow>
-      <cylinderGeometry args={[0.8, 0.8, 0.5, 32]} rotation={[Math.PI / 2, 0, 0]} />
+      {/* Fixed: Removed 'rotation' from cylinderGeometry props and moved it to the mesh */}
+      <cylinderGeometry args={[0.8, 0.8, 0.5, 32]} />
       <meshStandardMaterial color="#111111" metalness={0.5} roughness={0.7} />
     </mesh>
   );
@@ -95,11 +96,11 @@ const TrackModel = ({ track }: { track: Track }) => {
         <meshStandardMaterial color="#1A1A1A" />
       </mesh>
       
-      {/* Track boundaries */}
-      {track.boundaries.map((boundary, index) => (
+      {/* Track boundaries - Fix: Use barriers instead of boundaries */}
+      {track.barriers.map((barrier, index) => (
         <mesh 
           key={index} 
-          position={[boundary.x, 0, boundary.y]} 
+          position={[(barrier.x1 + barrier.x2) / 2, 0, (barrier.y1 + barrier.y2) / 2]} 
           castShadow
         >
           <boxGeometry args={[5, 3, 5]} />
