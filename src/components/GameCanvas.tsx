@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState } from 'react';
 import { Car } from '@/utils/Car';
 import { Track } from '@/utils/Track';
@@ -11,8 +10,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { RayCaster } from '@/utils/AIAlgorithms';
 import { Game3DRenderer } from './Game3DRenderer';
 import { Skeleton } from "@/components/ui/skeleton";
+import { Loader } from "@/components/ui/loader";
 
-// Let's use the game mode to determine track size
 const getTrackSize = (mode: GameModeType) => {
   const config = GameMode.getConfig(mode);
   return {
@@ -48,12 +47,9 @@ export const GameCanvas = () => {
   const lastTimestamp = useRef<number>(0);
   const { toast } = useToast();
   const playerSensorReadings = useRef<number[]>([]);
-  // Always use 3D rendering by default
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Start the game as soon as component mounts
   useEffect(() => {
-    // Short timeout to ensure all components are ready
     const timer = setTimeout(() => {
       startGame();
     }, 500);
@@ -66,40 +62,34 @@ export const GameCanvas = () => {
     
     const trackSize = getTrackSize(gameMode);
     
-    // Create track with size from game mode
     const newTrack = new Track(trackSize.width, trackSize.height);
     
-    // Create player car
     const newPlayerCar = new Car(
       newTrack.startPosition.x,
       newTrack.startPosition.y,
-      30, // width
-      50, // height
-      '#8B5CF6', // color
+      30,
+      50,
+      '#8B5CF6',
       newTrack.startAngle
     );
 
-    // Apply physics from game mode
     const modeConfig = GameMode.getConfig(gameMode);
     newPlayerCar.maxVelocity = 300 * modeConfig.physics.boostMultiplier;
     
-    // Create enhanced AI car with difficulty from game mode
     const newAiCar = new EnhancedAICar(
       newTrack.startPosition.x + 40,
       newTrack.startPosition.y,
-      30, // width
-      50, // height
-      '#F97316', // color
+      30,
+      50,
+      '#F97316',
       newTrack.startAngle,
       newTrack,
       modeConfig.difficultyMultiplier
     );
     
-    // Create camera
     const newCamera = new Camera();
     newCamera.setMode(cameraMode);
     
-    // Set fixed camera positions based on track checkpoints
     const fixedPositions = newTrack.checkpoints.map(checkpoint => ({
       x: checkpoint.x,
       y: checkpoint.y,
@@ -113,11 +103,9 @@ export const GameCanvas = () => {
     setCamera(newCamera);
     setGameLoaded(true);
     
-    // Short timeout to ensure 3D renderer has time to initialize
     setTimeout(() => {
       setIsLoading(false);
       
-      // Show welcome toast
       toast({
         title: `3D Racing Game Ready!`,
         description: "Use arrow keys to drive, SPACE for boost, C to change camera",
@@ -132,7 +120,6 @@ export const GameCanvas = () => {
       const deltaTime = lastTimestamp.current ? (timestamp - lastTimestamp.current) / 1000 : 0.016;
       lastTimestamp.current = timestamp;
       
-      // Update player car based on input
       const keys = keysPressed.current;
       
       if (keys['ArrowUp'] || keys['w']) {
@@ -150,22 +137,19 @@ export const GameCanvas = () => {
         playerCar.turnRight(deltaTime);
       }
       
-      // Apply game mode physics to player car
       const modeConfig = GameMode.getConfig(gameMode);
       playerCar.maxVelocity = 300 * modeConfig.physics.boostMultiplier;
       playerCar.boostMultiplier = modeConfig.physics.boostMultiplier;
       playerCar.driftFactor = modeConfig.physics.driftFactor;
       
-      // Calculate player sensor readings for improved collision detection
       playerSensorReadings.current = RayCaster.castRays(
         { x: playerCar.x, y: playerCar.y, angle: playerCar.angle },
         track,
-        7, // Number of rays
-        150, // Ray length
-        Math.PI * 0.6 // Ray spread
+        7,
+        150,
+        Math.PI * 0.6
       );
       
-      // Boost with custom stats tracking
       let boostUsed = false;
       if (keys[' '] && gameStats.boost > 0) {
         playerCar.activateBoost();
@@ -183,11 +167,9 @@ export const GameCanvas = () => {
         }));
       }
 
-      // Update positions and physics
       playerCar.update(deltaTime);
       aiCar.update(deltaTime, playerCar);
       
-      // Track drift distance for challenges
       if (playerCar.drifting) {
         const driftAmount = playerCar.getSpeed() * deltaTime;
         setGameStats(prev => ({
@@ -196,10 +178,8 @@ export const GameCanvas = () => {
         }));
       }
       
-      // Update camera
       camera.update(deltaTime, playerCar, track.width, track.height);
       
-      // Check collisions with track using improved detection
       const minSensorReading = Math.min(...playerSensorReadings.current);
       if (minSensorReading < 15) {
         playerCar.handleCollision();
@@ -210,11 +190,9 @@ export const GameCanvas = () => {
         });
       }
       
-      // Check if crossed checkpoint or finish line
       const playerCheckpoint = track.checkCheckpoint(playerCar);
       if (playerCheckpoint) {
         if (playerCheckpoint === 'finish') {
-          // Completed a lap
           const lapTime = gameStats.currentLapTime;
           const newLap = gameStats.lap + 1;
           
@@ -230,11 +208,9 @@ export const GameCanvas = () => {
             description: `Time: ${lapTime.toFixed(2)}s`,
           });
           
-          // Check challenge completion for challenge mode
           if (gameMode === 'challenge') {
             const challenges = modeConfig.challenges;
             if (challenges) {
-              // Check time challenge
               const timeChallenge = challenges.find(c => c.type === 'time');
               if (timeChallenge && lapTime <= timeChallenge.target) {
                 toast({
@@ -243,7 +219,6 @@ export const GameCanvas = () => {
                 });
               }
               
-              // Check drift challenge
               const driftChallenge = challenges.find(c => c.type === 'drift');
               if (driftChallenge && gameStats.driftDistance >= driftChallenge.target) {
                 toast({
@@ -252,7 +227,6 @@ export const GameCanvas = () => {
                 });
               }
               
-              // Check boost challenge
               const boostChallenge = challenges.find(c => c.type === 'boost');
               if (boostChallenge && gameStats.boostTime >= boostChallenge.target) {
                 toast({
@@ -265,10 +239,9 @@ export const GameCanvas = () => {
         }
       }
       
-      // Update game stats
       setGameStats(prev => ({
         ...prev,
-        speed: Math.round(playerCar.getSpeed() * 3.6), // Convert to km/h
+        speed: Math.round(playerCar.getSpeed() * 3.6),
         currentLapTime: prev.currentLapTime + deltaTime,
         raceTime: prev.raceTime + deltaTime,
         sensorReadings: [...playerSensorReadings.current]
@@ -290,11 +263,9 @@ export const GameCanvas = () => {
     const handleKeyDown = (e: KeyboardEvent) => {
       keysPressed.current[e.key] = true;
       
-      // Camera change on 'c' press
       if (e.key === 'c' && !keysPressed.current.cAlreadyPressed) {
         keysPressed.current.cAlreadyPressed = true;
         
-        // Cycle through camera modes
         const modes: CameraMode[] = ['follow', 'chase', 'overhead', 'cinematic', 'fixed'];
         const currentIndex = modes.indexOf(cameraMode);
         const nextMode = modes[(currentIndex + 1) % modes.length];
@@ -310,17 +281,14 @@ export const GameCanvas = () => {
         }
       }
       
-      // Toggle UI with 'u' key
       if (e.key === 'u') {
         setShowUI(prev => !prev);
       }
       
-      // Next fixed camera position with 'v' key
       if (e.key === 'v' && camera && cameraMode === 'fixed') {
         camera.cycleFixedPosition();
       }
 
-      // Toggle AI type with 'a' key
       if (e.key === 'a') {
         setGameStats(prev => ({
           ...prev,
@@ -328,7 +296,6 @@ export const GameCanvas = () => {
         }));
 
         if (track && aiCar) {
-          // Create new AI car based on selected type
           const newAiCar = gameStats.aiType === 'basic' 
             ? new EnhancedAICar(aiCar.x, aiCar.y, aiCar.width, aiCar.height, aiCar.color, aiCar.angle, track, 0.85)
             : new AICar(aiCar.x, aiCar.y, aiCar.width, aiCar.height, aiCar.color, aiCar.angle, track, 0.85);
