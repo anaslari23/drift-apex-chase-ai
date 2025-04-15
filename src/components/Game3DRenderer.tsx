@@ -2,7 +2,7 @@
 import React, { useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, PerspectiveCamera, Environment, useGLTF } from '@react-three/drei';
+import { OrbitControls, PerspectiveCamera, Environment, useGLTF, Sky, Stars } from '@react-three/drei';
 import { Car } from '@/utils/Car';
 import { Track } from '@/utils/Track';
 import { CameraMode } from '@/utils/Camera';
@@ -15,8 +15,16 @@ const CarModel = ({ position, rotation, color, isPlayerCar }: {
   isPlayerCar: boolean
 }) => {
   const mesh = useRef<THREE.Mesh>(null);
+  const boostEffect = useRef<THREE.Group>(null);
   
-  // Basic car model with improved graphics
+  useFrame(() => {
+    // Add some movement to the boost effect
+    if (boostEffect.current) {
+      boostEffect.current.rotation.z += 0.1;
+    }
+  });
+  
+  // Enhanced car model with improved graphics
   return (
     <group position={position} rotation={[0, rotation, 0]}>
       {/* Car body */}
@@ -57,28 +65,46 @@ const CarModel = ({ position, rotation, color, isPlayerCar }: {
         <meshStandardMaterial color="#FF0000" emissive="#FF0000" emissiveIntensity={2} />
       </mesh>
       
-      {/* Drift effect */}
+      {/* Boost effect */}
       {isPlayerCar && (
-        <mesh position={[0, -0.6, -3]} rotation={[0, 0, 0]}>
-          <planeGeometry args={[5, 10]} />
-          <meshStandardMaterial 
-            color="#D946EF" 
-            transparent 
-            opacity={0.4} 
-            emissive="#D946EF" 
-            emissiveIntensity={0.5} 
-          />
-        </mesh>
+        <group ref={boostEffect} position={[0, 0, -4.5]}>
+          <mesh position={[0, 0, 0]} rotation={[0, 0, 0]}>
+            <coneGeometry args={[1.2, 3, 16]} />
+            <meshStandardMaterial 
+              color="#D946EF" 
+              transparent 
+              opacity={0.7} 
+              emissive="#D946EF" 
+              emissiveIntensity={1} 
+            />
+          </mesh>
+          <pointLight color="#D946EF" intensity={3} distance={10} />
+        </group>
       )}
+      
+      {/* Add a light underneath for cool effect */}
+      <pointLight 
+        position={[0, -1, 0]} 
+        color={isPlayerCar ? "#8B5CF6" : "#F97316"} 
+        intensity={2} 
+        distance={5} 
+      />
     </group>
   );
 };
 
 // Wheel component
 const Wheel = ({ position }: { position: [number, number, number] }) => {
+  const wheelRef = useRef<THREE.Mesh>(null);
+  
+  useFrame(() => {
+    if (wheelRef.current) {
+      wheelRef.current.rotation.x += 0.1; // Spinning wheel effect
+    }
+  });
+  
   return (
-    <mesh position={position} castShadow receiveShadow>
-      {/* Fixed: Removed 'rotation' from cylinderGeometry props and moved it to the mesh */}
+    <mesh position={position} castShadow receiveShadow ref={wheelRef} rotation={[0, 0, Math.PI / 2]}>
       <cylinderGeometry args={[0.8, 0.8, 0.5, 32]} />
       <meshStandardMaterial color="#111111" metalness={0.5} roughness={0.7} />
     </mesh>
@@ -96,34 +122,97 @@ const TrackModel = ({ track }: { track: Track }) => {
         <meshStandardMaterial color="#1A1A1A" />
       </mesh>
       
-      {/* Track boundaries - Fix: Use barriers instead of boundaries */}
-      {track.barriers.map((barrier, index) => (
-        <mesh 
-          key={index} 
-          position={[(barrier.x1 + barrier.x2) / 2, 0, (barrier.y1 + barrier.y2) / 2]} 
-          castShadow
-        >
-          <boxGeometry args={[5, 3, 5]} />
-          <meshStandardMaterial color="#F97316" emissive="#F97316" emissiveIntensity={0.2} />
-        </mesh>
-      ))}
+      {/* Track boundaries */}
+      {track.barriers.map((barrier, index) => {
+        const midX = (barrier.x1 + barrier.x2) / 2;
+        const midY = (barrier.y1 + barrier.y2) / 2;
+        const length = Math.sqrt(
+          Math.pow(barrier.x2 - barrier.x1, 2) + 
+          Math.pow(barrier.y2 - barrier.y1, 2)
+        );
+        const angle = Math.atan2(barrier.y2 - barrier.y1, barrier.x2 - barrier.x1);
+        
+        return (
+          <mesh 
+            key={index} 
+            position={[midX, 1, midY]} 
+            rotation={[0, -angle, 0]}
+            castShadow
+          >
+            <boxGeometry args={[length, 2, 3]} />
+            <meshStandardMaterial color="#F97316" emissive="#F97316" emissiveIntensity={0.2} />
+          </mesh>
+        );
+      })}
       
       {/* Checkpoints */}
       {track.checkpoints.map((checkpoint, index) => (
-        <mesh 
-          key={`checkpoint-${index}`} 
-          position={[checkpoint.x, 0, checkpoint.y]}
-          rotation={[-Math.PI / 2, 0, 0]}
-        >
-          <ringGeometry args={[8, 10, 32]} />
-          <meshStandardMaterial 
-            color={index === 0 ? "#00FF00" : "#FFFFFF"} 
-            side={THREE.DoubleSide} 
-            transparent 
-            opacity={0.3} 
-          />
-        </mesh>
+        <group key={`checkpoint-${index}`} position={[checkpoint.x, 0.1, checkpoint.y]}>
+          <mesh rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[8, 10, 32]} />
+            <meshStandardMaterial 
+              color={index === 0 ? "#00FF00" : "#FFFFFF"} 
+              side={THREE.DoubleSide} 
+              transparent 
+              opacity={0.3} 
+              emissive={index === 0 ? "#00FF00" : "#FFFFFF"}
+              emissiveIntensity={0.5}
+            />
+          </mesh>
+          
+          {/* Add floating arrow above checkpoint */}
+          <mesh position={[0, 10, 0]} rotation={[0, index * 0.2, 0]}>
+            <coneGeometry args={[2, 4, 8]} />
+            <meshStandardMaterial 
+              color={index === 0 ? "#00FF00" : "#FFFFFF"} 
+              transparent 
+              opacity={0.7}
+              emissive={index === 0 ? "#00FF00" : "#FFFFFF"}
+              emissiveIntensity={0.5}
+            />
+          </mesh>
+        </group>
       ))}
+      
+      {/* Add track markings */}
+      <TrackMarkings track={track} />
+    </group>
+  );
+};
+
+// Track markings component
+const TrackMarkings = ({ track }: { track: Track }) => {
+  return (
+    <group>
+      {track.checkpoints.map((checkpoint, index) => {
+        const nextCheckpoint = track.checkpoints[(index + 1) % track.checkpoints.length];
+        const segments = 20;
+        
+        // Create markings between checkpoints
+        return Array.from({ length: segments }).map((_, i) => {
+          const t = i / segments;
+          const x = checkpoint.x + (nextCheckpoint.x - checkpoint.x) * t;
+          const y = checkpoint.y + (nextCheckpoint.y - checkpoint.y) * t;
+          
+          if (i % 2 !== 0) return null; // Skip every other marker for a dashed line effect
+          
+          return (
+            <mesh 
+              key={`marking-${index}-${i}`} 
+              position={[x, 0.01, y]} 
+              rotation={[-Math.PI / 2, 0, 0]}
+            >
+              <planeGeometry args={[2, 5]} />
+              <meshStandardMaterial 
+                color="#FFFFFF" 
+                side={THREE.DoubleSide}
+                transparent
+                opacity={0.7}
+              />
+            </mesh>
+          );
+        });
+      })}
     </group>
   );
 };
@@ -132,8 +221,9 @@ const TrackModel = ({ track }: { track: Track }) => {
 const Environment3D = () => {
   return (
     <>
-      {/* Sky */}
-      <color attach="background" args={['#87CEEB']} />
+      {/* Sky and atmosphere */}
+      <Sky sunPosition={[100, 20, 100]} turbidity={0.3} rayleigh={0.5} />
+      <Stars radius={300} depth={100} count={5000} factor={4} />
       
       {/* Directional light (sun) */}
       <directionalLight 
@@ -169,8 +259,35 @@ const Environment3D = () => {
         </mesh>
       </group>
       
+      {/* Stadium lights */}
+      <StadiumLights />
+      
       {/* Trees */}
       <Trees />
+    </>
+  );
+};
+
+// Stadium lights
+const StadiumLights = () => {
+  const positions = [
+    [-250, 0, -250],
+    [250, 0, -250],
+    [-250, 0, 250],
+    [250, 0, 250],
+  ];
+  
+  return (
+    <>
+      {positions.map((position, index) => (
+        <group key={index} position={position as [number, number, number]}>
+          <mesh position={[0, 50, 0]} castShadow>
+            <cylinderGeometry args={[2, 3, 100, 16]} />
+            <meshStandardMaterial color="#444444" />
+          </mesh>
+          <pointLight position={[0, 100, 0]} intensity={50} distance={500} decay={1.5} color="#ffffff" />
+        </group>
+      ))}
     </>
   );
 };
@@ -185,7 +302,11 @@ const Trees = () => {
     [-120, 0, 0],
     [120, 0, 0],
     [0, 0, -120],
-    [0, 0, 120]
+    [0, 0, 120],
+    [-150, 0, -150],
+    [150, 0, -150],
+    [-150, 0, 150],
+    [150, 0, 150],
   ];
   
   return (
@@ -199,6 +320,8 @@ const Trees = () => {
 
 // Individual tree
 const Tree = ({ position }: { position: [number, number, number] }) => {
+  const treeType = Math.random() > 0.5 ? 'pine' : 'regular';
+  
   return (
     <group position={position}>
       {/* Trunk */}
@@ -208,10 +331,27 @@ const Tree = ({ position }: { position: [number, number, number] }) => {
       </mesh>
       
       {/* Foliage */}
-      <mesh position={[0, 12, 0]} castShadow>
-        <coneGeometry args={[6, 15, 16]} />
-        <meshStandardMaterial color="#2E8B57" />
-      </mesh>
+      {treeType === 'pine' ? (
+        <>
+          <mesh position={[0, 10, 0]} castShadow>
+            <coneGeometry args={[6, 12, 16]} />
+            <meshStandardMaterial color="#2E8B57" />
+          </mesh>
+          <mesh position={[0, 15, 0]} castShadow>
+            <coneGeometry args={[4, 10, 16]} />
+            <meshStandardMaterial color="#2E8B57" />
+          </mesh>
+          <mesh position={[0, 20, 0]} castShadow>
+            <coneGeometry args={[2, 8, 16]} />
+            <meshStandardMaterial color="#2E8B57" />
+          </mesh>
+        </>
+      ) : (
+        <mesh position={[0, 12, 0]} castShadow>
+          <sphereGeometry args={[6, 16, 16]} />
+          <meshStandardMaterial color="#2E8B57" />
+        </mesh>
+      )}
     </group>
   );
 };
@@ -333,6 +473,9 @@ export const Game3DRenderer = ({
       
       {/* Environment */}
       <Environment3D />
+      
+      {/* Fog for depth */}
+      <fog attach="fog" args={['#87CEEB', 100, 700]} />
     </Canvas>
   );
 };

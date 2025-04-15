@@ -1,3 +1,4 @@
+
 import { useEffect, useRef, useState } from 'react';
 import { Car } from '@/utils/Car';
 import { Track } from '@/utils/Track';
@@ -62,8 +63,10 @@ export const GameCanvas = () => {
     
     const trackSize = getTrackSize(gameMode);
     
+    // Create new track with enhanced visuals
     const newTrack = new Track(trackSize.width, trackSize.height);
     
+    // Create player car
     const newPlayerCar = new Car(
       newTrack.startPosition.x,
       newTrack.startPosition.y,
@@ -76,6 +79,7 @@ export const GameCanvas = () => {
     const modeConfig = GameMode.getConfig(gameMode);
     newPlayerCar.maxVelocity = 300 * modeConfig.physics.boostMultiplier;
     
+    // Create AI car with enhanced AI
     const newAiCar = new EnhancedAICar(
       newTrack.startPosition.x + 40,
       newTrack.startPosition.y,
@@ -84,9 +88,10 @@ export const GameCanvas = () => {
       '#F97316',
       newTrack.startAngle,
       newTrack,
-      modeConfig.difficultyMultiplier
+      0.9 // Set appropriate difficulty
     );
     
+    // Set up camera
     const newCamera = new Camera();
     newCamera.setMode(cameraMode);
     
@@ -108,7 +113,7 @@ export const GameCanvas = () => {
       
       toast({
         title: `3D Racing Game Ready!`,
-        description: "Use arrow keys to drive, SPACE for boost, C to change camera",
+        description: "Race against the AI! Use arrow keys to drive, SPACE for boost, C to change camera",
       });
     }, 1000);
   };
@@ -330,15 +335,16 @@ export const GameCanvas = () => {
   return (
     <div className="game-container">
       {isLoading ? (
-        <div className="flex items-center justify-center h-screen bg-black">
+        <div className="flex items-center justify-center h-screen bg-gradient-to-b from-indigo-900 to-black">
           <div className="flex flex-col items-center gap-4">
             <Loader className="w-16 h-16 text-purple-500" />
-            <p className="text-white text-2xl">Loading 3D Racing Game...</p>
+            <p className="text-white text-2xl font-bold">Loading 3D Racing Game...</p>
             <div className="w-64 space-y-2">
-              <Skeleton className="h-4 w-full bg-purple-900/20" />
-              <Skeleton className="h-4 w-5/6 bg-purple-900/20" />
-              <Skeleton className="h-4 w-4/6 bg-purple-900/20" />
+              <Skeleton className="h-4 w-full bg-purple-900/40" />
+              <Skeleton className="h-4 w-5/6 bg-purple-900/40" />
+              <Skeleton className="h-4 w-4/6 bg-purple-900/40" />
             </div>
+            <p className="text-gray-300 text-sm mt-2">Preparing the race track and AI opponent...</p>
           </div>
         </div>
       ) : gameLoaded && playerCar && track && aiCar && camera ? (
@@ -353,7 +359,7 @@ export const GameCanvas = () => {
           {gameStats && showUI && <GameUI gameStats={gameStats} />}
         </div>
       ) : (
-        <div className="flex items-center justify-center h-screen bg-black">
+        <div className="flex items-center justify-center h-screen bg-gradient-to-b from-indigo-900 to-black">
           <p className="text-white text-2xl">Game failed to load. Please refresh.</p>
         </div>
       )}

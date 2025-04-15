@@ -11,8 +11,8 @@ export class Track {
   constructor(width: number, height: number) {
     this.width = width;
     this.height = height;
-    this.trackWidth = 120;
-    this.startPosition = { x: width / 2, y: height / 2 + 200 };
+    this.trackWidth = 150; // Wider track for better racing
+    this.startPosition = { x: width / 2, y: height / 2 + 300 };
     this.startAngle = -Math.PI / 2; // Pointing upward
     
     // Define track layout
@@ -22,33 +22,38 @@ export class Track {
   }
   
   private generateCheckpoints() {
-    // Create track checkpoints with a race circuit layout
+    // Create track checkpoints with a more interesting race circuit layout
     const centerX = this.width / 2;
     const centerY = this.height / 2;
-    const radius = 400;
+    const radiusX = 500;
+    const radiusY = 350;
     
     const points = [];
     
     // Start/finish line
-    points.push({ x: centerX, y: centerY + radius / 2 });
+    points.push({ x: centerX, y: centerY + radiusY });
     
-    // First turn
-    points.push({ x: centerX - radius / 3, y: centerY });
+    // First corner (hairpin)
+    points.push({ x: centerX - 100, y: centerY + radiusY * 0.7 });
+    points.push({ x: centerX - radiusX * 0.7, y: centerY + radiusY * 0.3 });
     
     // Back straight
-    points.push({ x: centerX - radius, y: centerY - radius / 3 });
+    points.push({ x: centerX - radiusX * 0.9, y: centerY - radiusY * 0.2 });
     
-    // Second turn
-    points.push({ x: centerX - radius / 2, y: centerY - radius });
+    // Chicane
+    points.push({ x: centerX - radiusX * 0.5, y: centerY - radiusY * 0.5 });
+    points.push({ x: centerX - radiusX * 0.2, y: centerY - radiusY * 0.7 });
     
-    // Third turn
-    points.push({ x: centerX + radius / 2, y: centerY - radius / 2 });
+    // Long curve
+    points.push({ x: centerX + radiusX * 0.2, y: centerY - radiusY * 0.8 });
+    points.push({ x: centerX + radiusX * 0.6, y: centerY - radiusY * 0.6 });
     
-    // Fourth turn
-    points.push({ x: centerX + radius, y: centerY });
+    // Final corner
+    points.push({ x: centerX + radiusX * 0.8, y: centerY - radiusY * 0.2 });
+    points.push({ x: centerX + radiusX * 0.7, y: centerY + radiusY * 0.3 });
     
     // Final straight leading back to start
-    points.push({ x: centerX + radius / 2, y: centerY + radius / 3 });
+    points.push({ x: centerX + radiusX * 0.4, y: centerY + radiusY * 0.7 });
     
     return points;
   }
@@ -92,6 +97,29 @@ export class Track {
         x2: next.x - px * outerOffset,
         y2: next.y - py * outerOffset
       });
+      
+      // Add corner supports for more visual interest
+      if (i % 2 === 0) {
+        // Add perpendicular barriers at some points for "kerbs"
+        const midX = (current.x + next.x) / 2;
+        const midY = (current.y + next.y) / 2;
+        
+        // Inner kerb
+        barriers.push({
+          x1: midX + px * innerOffset,
+          y1: midY + py * innerOffset,
+          x2: midX + px * (innerOffset - 10),
+          y2: midY + py * (innerOffset - 10)
+        });
+        
+        // Outer kerb
+        barriers.push({
+          x1: midX - px * outerOffset,
+          y1: midY - py * outerOffset,
+          x2: midX - px * (outerOffset - 10),
+          y2: midY - py * (outerOffset - 10)
+        });
+      }
     }
     
     return barriers;
@@ -101,7 +129,7 @@ export class Track {
     const decorations = [];
     
     // Add trees, rocks, billboards around the track
-    for (let i = 0; i < 50; i++) {
+    for (let i = 0; i < 80; i++) {
       // Avoid placing decorations on the track
       let x, y, isValid;
       do {
@@ -115,7 +143,7 @@ export class Track {
           const cp2 = this.checkpoints[(j + 1) % this.checkpoints.length];
           
           const dist = this.distanceToLineSegment(x, y, cp1.x, cp1.y, cp2.x, cp2.y);
-          if (dist < this.trackWidth * 1.2) {
+          if (dist < this.trackWidth * 1.5) {
             isValid = false;
             break;
           }
@@ -123,7 +151,7 @@ export class Track {
       } while (!isValid);
       
       // Choose decoration type
-      const types = ['tree', 'rock', 'billboard', 'tire-stack'];
+      const types = ['tree', 'rock', 'billboard', 'tire-stack', 'flag'];
       const type = types[Math.floor(Math.random() * types.length)];
       
       // Varied sizes
@@ -140,7 +168,7 @@ export class Track {
     const centerY = this.height / 2;
     
     // Add grandstands near start/finish
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 15; i++) {
       const angle = Math.random() * Math.PI / 4 - Math.PI / 8 + Math.PI / 2;
       const distance = Math.random() * 100 + 300;
       const x = this.startPosition.x + Math.cos(angle) * distance;
@@ -152,6 +180,43 @@ export class Track {
         type: 'grandstand',
         size: 50 + Math.random() * 30,
         rotation: angle + Math.PI / 2
+      });
+    }
+    
+    // Add starting lights at the start/finish line
+    decorations.push({
+      x: this.startPosition.x,
+      y: this.startPosition.y - 50,
+      type: 'start-lights',
+      size: 60,
+      rotation: this.startAngle
+    });
+    
+    // Add advertising billboards around the track
+    for (let i = 0; i < this.checkpoints.length; i++) {
+      const cp = this.checkpoints[i];
+      const nextCp = this.checkpoints[(i + 1) % this.checkpoints.length];
+      
+      const dx = nextCp.x - cp.x;
+      const dy = nextCp.y - cp.y;
+      const angle = Math.atan2(dy, dx);
+      
+      // Add billboards perpendicular to the track
+      decorations.push({
+        x: cp.x + Math.cos(angle + Math.PI/2) * (this.trackWidth + 30),
+        y: cp.y + Math.sin(angle + Math.PI/2) * (this.trackWidth + 30),
+        type: 'billboard',
+        size: 80,
+        rotation: angle
+      });
+      
+      // Add billboards on the other side too
+      decorations.push({
+        x: cp.x + Math.cos(angle - Math.PI/2) * (this.trackWidth + 30),
+        y: cp.y + Math.sin(angle - Math.PI/2) * (this.trackWidth + 30),
+        type: 'billboard',
+        size: 80,
+        rotation: angle + Math.PI
       });
     }
     
@@ -595,6 +660,16 @@ export class Track {
           ctx.fillStyle = '#555555';
           ctx.fillRect(-width / 2, 0, width / 10, rowHeight * 2);
           ctx.fillRect(width / 2 - width / 10, 0, width / 10, rowHeight * 2);
+          break;
+          
+        case 'start-lights':
+          // Draw start lights
+          ctx.fillStyle = '#FF0000';
+          ctx.fillRect(-decoration.size / 2, -decoration.size / 2, decoration.size, decoration.size);
+          ctx.beginPath();
+          ctx.arc(-decoration.size / 2, -decoration.size / 2, decoration.size / 4, 0, Math.PI * 2);
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fill();
           break;
       }
       
