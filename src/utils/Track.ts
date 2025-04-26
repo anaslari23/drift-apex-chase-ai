@@ -7,18 +7,19 @@ export class Track {
   startPosition: { x: number, y: number };
   startAngle: number;
   decorations: Array<{ x: number, y: number, type: string, size: number, rotation: number }>;
+  obstacles: Array<{ x: number, y: number, width: number, height: number }>;
   
   constructor(width: number, height: number) {
-    this.width = width;
-    this.height = height;
-    this.trackWidth = 150; // Wider track for better racing
-    this.startPosition = { x: width / 2, y: height / 2 + 300 };
-    this.startAngle = -Math.PI / 2; // Pointing upward
+    this.width = width * 1.5; // Make track 50% bigger
+    this.height = height * 1.5;
+    this.trackWidth = 180; // Wider track for better racing
+    this.startPosition = { x: this.width / 2, y: this.height / 2 + 400 };
+    this.startAngle = -Math.PI / 2;
     
-    // Define track layout
     this.checkpoints = this.generateCheckpoints();
     this.barriers = this.generateBarriers();
     this.decorations = this.generateDecorations();
+    this.obstacles = this.generateObstacles();
   }
   
   private generateCheckpoints() {
@@ -223,7 +224,46 @@ export class Track {
     return decorations;
   }
   
+  private generateObstacles(): Array<{ x: number, y: number, width: number, height: number }> {
+    const obstacles = [];
+    const centerX = this.width / 2;
+    const centerY = this.height / 2;
+    
+    // Add static obstacles around the track
+    for (let i = 0; i < this.checkpoints.length; i++) {
+      const checkpoint = this.checkpoints[i];
+      const nextCheckpoint = this.checkpoints[(i + 1) % this.checkpoints.length];
+      
+      // Calculate midpoint between checkpoints
+      const midX = (checkpoint.x + nextCheckpoint.x) / 2;
+      const midY = (checkpoint.y + nextCheckpoint.y) / 2;
+      
+      // Add random small obstacles
+      if (Math.random() > 0.5) {
+        obstacles.push({
+          x: midX + (Math.random() - 0.5) * this.trackWidth * 0.5,
+          y: midY + (Math.random() - 0.5) * this.trackWidth * 0.5,
+          width: 20 + Math.random() * 20,
+          height: 20 + Math.random() * 20
+        });
+      }
+    }
+    
+    return obstacles;
+  }
+  
   checkCollision(car: any): boolean {
+    // Check collision with obstacles
+    for (const obstacle of this.obstacles) {
+      const dx = car.x - obstacle.x;
+      const dy = car.y - obstacle.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      if (distance < (car.width + obstacle.width) / 2) {
+        return true;
+      }
+    }
+    
     // Simple collision detection with barriers
     for (const barrier of this.barriers) {
       // Check if car is close to this barrier segment
@@ -472,6 +512,31 @@ export class Track {
     
     // Draw decorations in front of the track
     this.renderDecorations(ctx, true);
+    
+    // Draw obstacles
+    for (const obstacle of this.obstacles) {
+      ctx.save();
+      ctx.translate(obstacle.x, obstacle.y);
+      
+      // Create obstacle gradient
+      const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, obstacle.width / 2);
+      gradient.addColorStop(0, '#F97316');
+      gradient.addColorStop(1, '#EA580C');
+      
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(0, 0, obstacle.width / 2, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Add warning stripes
+      ctx.strokeStyle = '#FFDD00';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([5, 5]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      
+      ctx.restore();
+    }
     
     ctx.restore();
   }

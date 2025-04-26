@@ -25,19 +25,21 @@ export class AICar extends Car {
     super(x, y, width, height, color, angle);
     this.track = track;
     this.targetCheckpoint = 0;
-    this.difficulty = difficulty; // 0-1, higher is more challenging
-    this.maxVelocity = 280 + (difficulty * 40); // Faster based on difficulty
-    this.reactionTime = 0.2 - (difficulty * 0.1); // Faster reactions at higher difficulty
+    this.difficulty = difficulty;
+    this.maxVelocity = 300 + (difficulty * 50);
+    this.reactionTime = 0.15 - (difficulty * 0.1);
     this.lastDecision = 0;
     this.avoidanceSensors = [
-      { angle: -0.5, distance: 80 },
-      { angle: 0, distance: 100 },
-      { angle: 0.5, distance: 80 }
+      { angle: -0.8, distance: 120 },
+      { angle: -0.4, distance: 150 },
+      { angle: 0, distance: 180 },
+      { angle: 0.4, distance: 150 },
+      { angle: 0.8, distance: 120 }
     ];
     this.racingLine = this.calculateRacingLine();
-    this.aggressiveness = difficulty * 0.8;
-    this.driftProbability = difficulty * 0.3;
-    this.preferredSpeed = 220 + (difficulty * 80);
+    this.aggressiveness = difficulty * 0.9;
+    this.driftProbability = difficulty * 0.4;
+    this.preferredSpeed = 250 + (difficulty * 100);
   }
   
   private calculateRacingLine(): Array<{x: number, y: number}> {
@@ -112,57 +114,63 @@ export class AICar extends Car {
   
   private makeDecisions(playerCar: Car) {
     const racingTarget = this.getTargetRacingPoint();
+    let dx = racingTarget.x - this.x;
+    let dy = racingTarget.y - this.y;
+    let targetAngle = Math.atan2(dx, -dy);
     
-    const dx = racingTarget.x - this.x;
-    const dy = racingTarget.y - this.y;
-    const targetAngle = Math.atan2(dx, -dy);
+    const sensorReadings = this.checkSensors();
+    const hasCollisionAhead = sensorReadings.some(r => r < 0.8);
+    
+    if (hasCollisionAhead) {
+      const leftSide = sensorReadings.slice(0, 2).reduce((a, b) => a + b, 0);
+      const rightSide = sensorReadings.slice(3).reduce((a, b) => a + b, 0);
+      
+      if (leftSide > rightSide) {
+        targetAngle -= 0.5;
+      } else {
+        targetAngle += 0.5;
+      }
+    }
     
     let angleDiff = targetAngle - this.angle;
     while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
     while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
     
-    const sensorReadings = this.checkSensors();
-    const hasCollisionAhead = sensorReadings.some(r => r < 1.0);
-    
-    const steeringFactor = hasCollisionAhead ? 1.5 : 1.0;
+    const steeringFactor = hasCollisionAhead ? 2.0 : 1.0;
     if (angleDiff > 0.1) {
       this.turnRight(this.reactionTime * steeringFactor);
     } else if (angleDiff < -0.1) {
       this.turnLeft(this.reactionTime * steeringFactor);
     }
     
-    if (!hasCollisionAhead && Math.abs(angleDiff) < 0.8) {
-      if (Math.abs(angleDiff) > 0.4 && this.getSpeed() > this.preferredSpeed * 0.7 && Math.random() < this.driftProbability) {
-        this.drifting = true;
-      } else {
-        this.drifting = false;
-      }
+    const shouldSlowDown = hasCollisionAhead || Math.abs(angleDiff) > 1.0;
+    if (!shouldSlowDown && this.getSpeed() < this.preferredSpeed) {
+      this.accelerate(this.reactionTime);
       
-      if (this.getSpeed() < this.preferredSpeed) {
-        this.accelerate(this.reactionTime);
-      } else {
-        this.releaseAccelerator(this.reactionTime);
-      }
-      
-      const isAheadOfPlayer = this.isAheadOf(playerCar);
-      const shouldBoost = !isAheadOfPlayer || 
-                          (this.distanceToCheckpoint() > 150 && Math.random() < this.difficulty * 0.2);
-      
-      if (shouldBoost && Math.random() < this.aggressiveness * 0.2) {
+      if (Math.abs(angleDiff) < 0.3 && this.getSpeed() > this.preferredSpeed * 0.7) {
         this.activateBoost();
       } else {
         this.deactivateBoost();
       }
-    } else {
+    } else if (shouldSlowDown) {
       this.brake(this.reactionTime);
       this.deactivateBoost();
+    }
+    
+    if (Math.abs(angleDiff) > 0.6 && this.getSpeed() > this.preferredSpeed * 0.6 && 
+        Math.random() < this.driftProbability) {
+      this.drifting = true;
+    } else {
       this.drifting = false;
     }
     
-    if (this.distanceToPlayer(playerCar) < 100) {
-      this.aggressiveness = Math.min(1.0, this.aggressiveness + 0.1);
+    const distanceToPlayer = this.distanceToPlayer(playerCar);
+    if (distanceToPlayer < 150) {
+      this.aggressiveness = Math.min(1.0, this.aggressiveness + 0.2);
+      this.preferredSpeed = Math.max(this.preferredSpeed, playerCar.getSpeed() * 1.1);
     } else {
-      this.aggressiveness = this.difficulty * 0.8;
+      this.aggressiveness = this.difficulty * 0.9;
+      this.preferredSpeed = 250 + (this.difficulty * 100);
     }
   }
   

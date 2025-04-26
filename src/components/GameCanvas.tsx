@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState } from 'react';
 import { Car } from '@/utils/Car';
 import { Track } from '@/utils/Track';
@@ -21,7 +20,7 @@ export const GameCanvas = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>();
   const [playerCar, setPlayerCar] = useState<Car | null>(null);
-  const [aiCar, setAiCar] = useState<AICar | EnhancedAICar | null>(null);
+  const [aiCars, setAiCars] = useState<(AICar | EnhancedAICar)[]>([]);
   const [track, setTrack] = useState<Track | null>(null);
   const [gameMode, setGameMode] = useState<GameModeType>('race');
   const [gameLoaded, setGameLoaded] = useState<boolean>(false);
@@ -63,20 +62,42 @@ export const GameCanvas = () => {
       newTrack.startAngle
     );
     
-    const newAiCar = new EnhancedAICar(
-      newTrack.startPosition.x + 40,
-      newTrack.startPosition.y,
-      30,
-      50,
-      '#F97316',
-      newTrack.startAngle,
-      newTrack,
-      0.85
-    );
+    const newAiCars = [
+      new EnhancedAICar(
+        newTrack.startPosition.x + 40,
+        newTrack.startPosition.y,
+        30,
+        50,
+        '#F97316',
+        newTrack.startAngle,
+        newTrack,
+        0.9
+      ),
+      new AICar(
+        newTrack.startPosition.x - 40,
+        newTrack.startPosition.y,
+        30,
+        50,
+        '#EA580C',
+        newTrack.startAngle,
+        newTrack,
+        0.8
+      ),
+      new AICar(
+        newTrack.startPosition.x,
+        newTrack.startPosition.y + 60,
+        30,
+        50,
+        '#FB923C',
+        newTrack.startAngle,
+        newTrack,
+        0.7
+      )
+    ];
     
     setTrack(newTrack);
     setPlayerCar(newPlayerCar);
-    setAiCar(newAiCar);
+    setAiCars(newAiCars);
     setGameLoaded(true);
     
     toast({
@@ -86,7 +107,7 @@ export const GameCanvas = () => {
   }, [gameMode, toast]);
 
   useEffect(() => {
-    if (!gameLoaded || !playerCar || !track || !aiCar || !canvasRef.current) return;
+    if (!gameLoaded || !playerCar || !track || aiCars.length === 0 || !canvasRef.current) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
@@ -98,7 +119,6 @@ export const GameCanvas = () => {
       
       const keys = keysPressed.current;
       
-      // Handle input
       if (keys['ArrowUp'] || keys['w']) {
         playerCar.accelerate(deltaTime);
       } else if (keys['ArrowDown'] || keys['s']) {
@@ -131,9 +151,9 @@ export const GameCanvas = () => {
         }));
       }
 
-      // Update game state
-      playerCar.update(deltaTime);
-      aiCar.update(deltaTime, playerCar);
+      aiCars.forEach(aiCar => {
+        aiCar.update(deltaTime, playerCar);
+      });
       
       if (playerCar.drifting) {
         setGameStats(prev => ({
@@ -142,7 +162,6 @@ export const GameCanvas = () => {
         }));
       }
       
-      // Check collisions
       playerSensorReadings.current = RayCaster.castRays(
         { x: playerCar.x, y: playerCar.y, angle: playerCar.angle },
         track,
@@ -161,7 +180,6 @@ export const GameCanvas = () => {
         });
       }
       
-      // Check checkpoints
       const playerCheckpoint = track.checkCheckpoint(playerCar);
       if (playerCheckpoint === 'finish') {
         const lapTime = gameStats.currentLapTime;
@@ -180,7 +198,6 @@ export const GameCanvas = () => {
         });
       }
       
-      // Update stats
       setGameStats(prev => ({
         ...prev,
         speed: Math.round(playerCar.getSpeed() * 3.6),
@@ -189,19 +206,17 @@ export const GameCanvas = () => {
         sensorReadings: [...playerSensorReadings.current]
       }));
       
-      // Render game
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       
-      // Center the camera on the player
       ctx.save();
       ctx.translate(canvas.width / 2 - playerCar.x, canvas.height / 2 - playerCar.y);
       
-      // Draw track
       track.render(ctx);
       
-      // Draw cars
       playerCar.render(ctx);
-      aiCar.render(ctx);
+      aiCars.forEach(aiCar => {
+        aiCar.render(ctx);
+      });
       
       ctx.restore();
       
@@ -215,7 +230,7 @@ export const GameCanvas = () => {
         cancelAnimationFrame(requestRef.current);
       }
     };
-  }, [gameLoaded, playerCar, track, aiCar, toast, gameStats.boost, gameMode]);
+  }, [gameLoaded, playerCar, track, aiCars, toast, gameStats.boost, gameMode]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
